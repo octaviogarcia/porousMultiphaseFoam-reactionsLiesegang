@@ -1,0 +1,7 @@
+reactionModel/reactionModel.C
+reactionModel/reactionModelNew.C
+noReactions/noReactions.C
+secondOrder/secondOrder.C
+strictOrder/strictOrder.C
+
+LIB = $(FOAM_USER_LIBBIN)/libreactionModels
