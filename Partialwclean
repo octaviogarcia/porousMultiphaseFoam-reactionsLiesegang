@@ -1,0 +1,18 @@
+#!/bin/sh
+cd ${0%/*} || exit 1    # run from this directory
+set -x
+
+# cleaning solvers 
+
+wclean all solvers
+wclean all libraries
+
+# purge option to clean executables
+if [ "$1" = "--purge" ]
+then
+    # clean solver executables
+    rm -f $FOAM_USER_APPBIN/porousScalarTransportFoam
+    rm -f $FOAM_USER_LIBBIN/libreactionModels.so
+    rm -f $FOAM_USER_LIBBIN/libporousModels.so
+    rm -f $FOAM_USER_LIBBIN/libtoolsGIS.so
+fi

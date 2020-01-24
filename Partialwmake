@@ -1,0 +1,13 @@
+#!/bin/sh
+cd ${0%/*} || exit 1    # run from this directory
+set -x
+
+# Compiling libraries
+wmake -j8 libraries/numericalMethods
+wmake -j8 libraries/porousModels
+wmake -j8 libraries/reactionModels
+wmake -j8 libraries/toolsGIS
+wmake -j8 libraries/porousBoundaryConditions
+
+# Compiling solvers 
+wmake -j8 solvers/porousScalarTransportFoam
