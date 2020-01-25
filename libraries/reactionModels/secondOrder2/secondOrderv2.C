@@ -85,6 +85,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     Y_(composition.Y()),
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
+    sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
     k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
     ks_(Y_.size(), List<dimensionedScalar>(Y_.size()))
 {
@@ -148,7 +149,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         auto order = addReaction(lhs, rhs, kf, ks);
 
         Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
-        Info<< "    ks: " << ks.value() << endl;
+        Info<< "    [->]: ks " << ks.value() << endl;
 
 		const dimensionedScalar cs_default("",dimensionSet(0,-3,0,0,1,0,0),0.);
         const dimensionedScalar& cs_scalar = reaction.lookupOrDefault("cs",cs_default);
@@ -452,11 +453,22 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
 {
     forAll(lhs, i)
     {
-        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * (k + ks);
+        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
     }
     forAll(rhs, i)
     {
-        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * (k + ks);
+        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+    }
+
+    if(ks.value()!=0.0){
+        forAll(lhs, i)
+        {
+            sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * ks;
+        }
+        forAll(rhs, i)
+        {
+            sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * ks;
+        }
     }
 }
 
@@ -496,6 +508,8 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         {
             term += fvm::Sp(k1_[speciesi][speciesi], Y_[speciesi]);
 
+            //falta agregar sk1_ al termino cuando se trabaja de forma implicita, queda pendiente hasta entender fvm::Sp
+
             forAll(Y_, speciesk)
             {
                 term += fvm::Sp(k2_[speciesi][speciesi][speciesk]*Y_[speciesk], Y_[speciesi]);
@@ -503,7 +517,9 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         }
         else
         {
+
             term += k1_[speciesi][speciesj]*Y_[speciesj];
+            term += sk1_[speciesi][speciesj]*Y_[speciesj];
 
             forAll(Y_, speciesk)
             {

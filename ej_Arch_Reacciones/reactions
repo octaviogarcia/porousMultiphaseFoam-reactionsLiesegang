@@ -36,7 +36,7 @@ reactions
     {
         reaction  "C^1 = D^0";
 		kf  kf [0 0 -1 0 0 0 0] 0.0;
-		ks  ks [0 0 -1 0 0 0 0] 1.0;
+		ks  ks [0 0 -1 0 0 0 0] 0.001;
     }
 }
 
