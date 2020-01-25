@@ -85,10 +85,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     Y_(composition.Y()),
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
-    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
+    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
+    ks_(Y_.size(), List<dimensionedScalar>(Y_.size()))
 {
-	List<autoPtr<volScalarField> > lista_aux(Y_.size());
-	cs = List< List<autoPtr<volScalarField> > >(Y_.size(),lista_aux);
+	List<autoPtr<volScalarField> > list_aux(Y_.size());
+	cs = List< List<autoPtr<volScalarField> > >(Y_.size(),list_aux);
 
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
@@ -142,14 +143,15 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         } 
 
         const dimensionedScalar& kf = reaction.lookup("kf");
+        const dimensionedScalar& ks = reaction.lookupOrDefault("ks",dimensionedScalar("",dimensionSet(0,0,-1,0,0,0,0),0.));
 
+        auto order = addReaction(lhs, rhs, kf, ks);
+
+        Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
+        Info<< "    ks: " << ks.value() << endl;
 
 		const dimensionedScalar cs_default("",dimensionSet(0,-3,0,0,1,0,0),0.);
         const dimensionedScalar& cs_scalar = reaction.lookupOrDefault("cs",cs_default);
-
-        auto order = addReaction(lhs, rhs, kf);
-
-        Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
 
         forAll(Y_, speciesi)
 		{
@@ -170,7 +172,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             }
         }
 
-        Info<< "    cs: " << cs_scalar.value() << endl;        //TODO: remove this
+        Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
 
 		forAll(Y_, speciesi)
 		{
@@ -188,7 +190,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         if(reaction.found("kb")) 
         {
             const dimensionedScalar& kb = reaction.lookup("kb");
-            order = addReaction(rhs, lhs, kb); //- Add the inverse reaction
+            order = addReaction(rhs, lhs, kb, ks); //- Add the inverse reaction
 
             Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
@@ -348,7 +350,8 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
-    const dimensionedScalar& k
+    const dimensionedScalar& k,
+    const dimensionedScalar& ks
 )
 {
     labelList orderIndices;
@@ -388,7 +391,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
             break;
 
         case 1:
-            addFirstOrderReaction(lhs, rhs, k, orderIndices[0]);
+            addFirstOrderReaction(lhs, rhs, k, ks, orderIndices[0]);
             break;
 
         case 0:
@@ -443,17 +446,17 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
+    const dimensionedScalar& ks,
     label a
 )
 {
     forAll(lhs, i)
     {
-        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * (k + ks);
     }
-
     forAll(rhs, i)
     {
-        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * (k + ks);
     }
 }
 
