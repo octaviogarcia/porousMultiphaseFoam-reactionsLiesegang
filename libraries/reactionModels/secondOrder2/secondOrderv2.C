@@ -571,13 +571,14 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
                 {
                     term += k2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
                     
-                    forAll(influencedSpeciesK1, speciesl){
-                        if(influencedSpeciesK1[speciesl] == speciesi){
-                            term += cmptMultiply(sk1_[speciesi][speciesj]*Y_[speciesj], binary );
+                    // v
+                    forAll(influencedSpeciesK2, speciesl){
+                        if(influencedSpeciesK2[speciesl] == speciesi){
+                            term += sk2_[speciesi][speciesj][speciesk]*Y_[speciesj]*cmptMultiply( Y_[speciesk] , binary );
                         }
                     }
-
-                    term += sk2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
+                    //^
+                    
                 }
             }
         }
