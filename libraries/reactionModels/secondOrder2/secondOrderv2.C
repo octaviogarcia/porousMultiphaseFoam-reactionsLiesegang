@@ -86,8 +86,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
     sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
-    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
-    ks_(Y_.size(), List<dimensionedScalar>(Y_.size()))
+    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
 {
 	List<autoPtr<volScalarField> > list_aux(Y_.size());
 	cs = List< List<autoPtr<volScalarField> > >(Y_.size(),list_aux);
@@ -100,6 +99,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         forAll(Y_, speciesj)
         {
             k1_[speciesi][speciesj].dimensions().reset(dimless/dimTime);
+            sk1_[speciesi][speciesj].dimensions().reset(dimless/dimTime);
 
             forAll(Y_, speciesk)
             {
@@ -144,12 +144,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         } 
 
         const dimensionedScalar& kf = reaction.lookup("kf");
-        const dimensionedScalar& ks = reaction.lookupOrDefault("ks",dimensionedScalar("",dimensionSet(0,0,-1,0,0,0,0),0.));
+        const bool liesegang = reaction.lookupOrDefault("liesegang",0) == 1;
 
-        auto order = addReaction(lhs, rhs, kf, ks);
+        auto order = addReaction(lhs, rhs, kf, liesegang);
 
         Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
-        Info<< "    [->]: ks " << ks.value() << endl;
+        Info<< "    Liesegang: " << liesegang << endl;
 
 		const dimensionedScalar cs_default("",dimensionSet(0,-3,0,0,1,0,0),0.);
         const dimensionedScalar& cs_scalar = reaction.lookupOrDefault("cs",cs_default);
@@ -191,7 +191,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         if(reaction.found("kb")) 
         {
             const dimensionedScalar& kb = reaction.lookup("kb");
-            order = addReaction(rhs, lhs, kb, ks); //- Add the inverse reaction
+            order = addReaction(rhs, lhs, kb, liesegang); //- Add the inverse reaction
 
             Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
@@ -352,7 +352,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
-    const dimensionedScalar& ks
+    const bool liesegang
 )
 {
     labelList orderIndices;
@@ -392,7 +392,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
             break;
 
         case 1:
-            addFirstOrderReaction(lhs, rhs, k, ks, orderIndices[0]);
+            addFirstOrderReaction(lhs, rhs, k, liesegang, orderIndices[0]);
             break;
 
         case 0:
@@ -447,28 +447,29 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
-    const dimensionedScalar& ks,
+    const bool liesegang,
     label a
 )
 {
-    forAll(lhs, i)
-    {
-        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
-    }
-    forAll(rhs, i)
-    {
-        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
-    }
-
-    if(ks.value()!=0.0){
+    if(!liesegang){
         forAll(lhs, i)
         {
-            sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * ks;
+            k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
         }
         forAll(rhs, i)
         {
-            sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * ks;
+            k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
         }
+    }
+    else{
+        forAll(lhs, i)
+        {
+            sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+        }
+        forAll(rhs, i)
+        {
+            sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+        } 
     }
 }
 
