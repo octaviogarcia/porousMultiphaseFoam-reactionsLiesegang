@@ -87,7 +87,7 @@ private:
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
         const dimensionedScalar& k,
-        const dimensionedScalar& ks
+        const label liesegang
     );
 
     //- Add a second order reaction (first order on both a and b)
@@ -96,16 +96,9 @@ private:
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
         const dimensionedScalar& k,
+        const label liesegang,
         label a,
         label b
-    );
-    //- Add a second order reaction (second order on a)
-    void addSecondOrderReaction 
-    (
-        const List<specieCoeffs>& lhs,
-        const List<specieCoeffs>& rhs,
-        const dimensionedScalar& k,
-        label a
     );
 
     //- Add a first order reaction (first order on a)
@@ -114,7 +107,7 @@ private:
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
         const dimensionedScalar& k,
-        const dimensionedScalar& ks,
+        const label liesegang,
         label a
     );
 
@@ -135,14 +128,21 @@ private:
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
     List<List<dimensionedScalar>> k1_; // First-order rate constants
-    List<List<dimensionedScalar>> sk1_; // First-order rate special constants
     List<List<List<dimensionedScalar>>> k2_; // Second-order rate constants
+
+    List<List<dimensionedScalar>> sk1_; // First-order rate special constants 
+    List<List<List<dimensionedScalar>>> sk2_; // Second-order rate special constants 
+
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;
 
-    List<List<dimensionedScalar>> ks_; // special heaviside first-order rate constant
-    List< List< autoPtr<volScalarField> > > cs;
+    label influencedSpecieK1;
+    label influencedSpecieK2;
 
+    volScalarField cs;
+    volScalarField binary;
+    dimensionedScalar rho;
+    dimensionedScalar cs_scalar;
 };
 
 
