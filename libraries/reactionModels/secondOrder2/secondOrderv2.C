@@ -85,11 +85,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     Y_(composition.Y()),
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
+    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
     sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
-    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
+    sk2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
 {
-	List<autoPtr<volScalarField> > list_aux(Y_.size());
-	cs = List< List<autoPtr<volScalarField> > >(Y_.size(),list_aux);
+	//List<autoPtr<volScalarField> > list_aux(Y_.size());
+	//cs = List< List<autoPtr<volScalarField> > >(Y_.size(),list_aux);
 
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
@@ -104,6 +105,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             forAll(Y_, speciesk)
             {
                 k2_[speciesi][speciesj][speciesk].dimensions().reset(dimVol/dimMoles/dimTime);
+                sk2_[speciesi][speciesj][speciesk].dimensions().reset(dimVol/dimMoles/dimTime);
             }
         }
     }
@@ -144,9 +146,10 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         } 
 
         const dimensionedScalar& kf = reaction.lookup("kf");
-        const bool liesegang = reaction.lookupOrDefault("liesegang",0) == 1;
+        const dimensionedScalar& liesegang = reaction.lookupOrDefault("liesegang",dimensionedScalar("",dimless,0.));
+        rho = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
 
-        auto order = addReaction(lhs, rhs, kf, liesegang);
+        auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
         Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
         Info<< "    Liesegang: " << liesegang << endl;
@@ -154,39 +157,49 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 		const dimensionedScalar cs_default("",dimensionSet(0,-3,0,0,1,0,0),0.);
         const dimensionedScalar& cs_scalar = reaction.lookupOrDefault("cs",cs_default);
 
-        forAll(Y_, speciesi)
+/*        forAll(Y_, speciesi)
 		{
             forAll(Y_, speciesj)
-            {
-				volScalarField* content = new volScalarField(
-					IOobject(
-             			word("cs"),
-             			Y_[0].v().mesh().time().timeName(),
-             			Y_[0].v().mesh(),
-             			IOobject::NO_READ,
-             			IOobject::NO_WRITE
-            		),
-            		Y_[0].v().mesh(),
-            		cs_scalar
-				);
-                cs[speciesi][speciesj].reset(content);
-            }
-        }
+            {  */
+		cs = new volScalarField(
+				IOobject(
+             	    word("cs"),
+             	    Y_[0].v().mesh().time().timeName(),
+             		Y_[0].v().mesh(),
+             		IOobject::NO_READ,
+             		IOobject::NO_WRITE
+            	),
+            	Y_[0].v().mesh(),
+            	cs_scalar
+			);
+        /*    }
+        }*/
 
         Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
 
-		forAll(Y_, speciesi)
-		{
-            forAll(Y_, speciesj)
-            {
-                const auto& field = cs[speciesi][speciesj]().internalField();
-				forAll(field, index)
-				{
-					Info<< " " << field[index];
-				}
-				Info << endl;
-            }
-        }
+        //Impresion campo cs
+        int i=0;
+        const auto& field = cs.internalField();
+		forAll(field, index){
+            i++;
+			Info<< " " << field[index];
+            if(i==5){
+		        Info << endl;
+                i=0;}}
+        
+        binary = new volScalarField(
+                    IOobject(
+                        word("cs"),
+                        Y_[0].v().mesh().time().timeName(),
+                        Y_[0].v().mesh(),
+                        IOobject::NO_READ,
+                        IOobject::NO_WRITE
+                    ),
+                    Y_[0].v().mesh(),
+                    dimensionedScalar("",dimless,1)
+                );
+
+
 
         if(reaction.found("kb")) 
         {
@@ -352,7 +365,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
-    const bool liesegang
+    const label liesegang
 )
 {
     labelList orderIndices;
@@ -388,7 +401,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
     switch(orderIndices.size())
     {
         case 2:
-            addSecondOrderReaction(lhs, rhs, k, orderIndices[0], orderIndices[1]);
+            addSecondOrderReaction(lhs, rhs, k, liesegang, orderIndices[0], orderIndices[1]);
             break;
 
         case 1:
@@ -416,30 +429,35 @@ void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
+    const label liesegang,
     label a,
     label b
 )
 {
-    forAll(lhs, i)
-    {
-        k2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
-    }
+    if(liesegang == 2){
+        forAll(lhs, i)
+        {
+            sk2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
+            influencedSpeciesK2.setSize(1,lhs[i].index);
+        }
 
-    forAll(rhs, i)
-    {
-        k2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+        forAll(rhs, i)
+        {
+            sk2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+            influencedSpeciesK2.setSize(1,rhs[i].index);
+        }
     }
-}
+    else{
+        forAll(lhs, i)
+        {
+            k2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
+        }
 
-void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
-(
-    const List<specieCoeffs>& lhs,
-    const List<specieCoeffs>& rhs,
-    const dimensionedScalar& k,
-    label a
-)
-{
-    addSecondOrderReaction(lhs, rhs, k, a, a);
+        forAll(rhs, i)
+        {
+            k2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+        }
+    }
 }
 
 void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
@@ -447,29 +465,27 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
-    const bool liesegang,
+    const label liesegang,
     label a
 )
 {
-    if(!liesegang){
-        forAll(lhs, i)
-        {
-            k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+    if(liesegang == 1){
+        forAll(lhs, i){
+            sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+            influencedSpeciesK1.setSize(1,lhs[i].index);
         }
-        forAll(rhs, i)
-        {
-            k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+        forAll(rhs, i){
+            sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+            influencedSpeciesK1.setSize(1,rhs[i].index);
         }
     }
     else{
-        forAll(lhs, i)
-        {
-            sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+        forAll(lhs, i){
+            k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
         }
-        forAll(rhs, i)
-        {
-            sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
-        } 
+        forAll(rhs, i){
+            k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+        }
     }
 }
 
@@ -519,8 +535,31 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         else
         {
 
+
             term += k1_[speciesi][speciesj]*Y_[speciesj];
-            term += sk1_[speciesi][speciesj]*Y_[speciesj];
+            
+            // v
+            forAll(influencedSpeciesK1, speciesl){
+                if(influencedSpeciesK1[speciesl] == speciesi){
+
+                    const auto& field = Y_[speciesi].internalField();
+                    const auto& binaryField = binary.internalField();
+                    const auto& csField = binary.internalField();
+
+                    forAll(field, cell){
+                        if(field[cell]>=rho){
+                            binaryField[cell] = 0;  //cell en binaryField es misma posicion para field?
+                            if(cell>0){
+                                cs[cell-1] = 0;
+                            }
+                            cs[cell+1]=0;
+                        }
+                    }
+                    
+                    term += cmptMultiply(cmptMultiply(sk1_[speciesi][speciesj]*Y_[speciesj] , /* escalon */ ), binary );
+                }
+            }
+            //^
 
             forAll(Y_, speciesk)
             {
@@ -531,6 +570,14 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
                 else
                 {
                     term += k2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
+                    
+                    forAll(influencedSpeciesK1, speciesl){
+                        if(influencedSpeciesK1[speciesl] == speciesi){
+                            term += cmptMultiply(sk1_[speciesi][speciesj]*Y_[speciesj], binary );
+                        }
+                    }
+
+                    term += sk2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
                 }
             }
         }
