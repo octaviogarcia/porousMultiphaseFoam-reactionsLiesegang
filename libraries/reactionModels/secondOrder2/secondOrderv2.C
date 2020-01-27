@@ -155,7 +155,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         Info<< "    Liesegang: " << liesegang << endl;
 
 		const dimensionedScalar cs_default("",dimensionSet(0,-3,0,0,1,0,0),0.);
-        const dimensionedScalar& cs_scalar = reaction.lookupOrDefault("cs",cs_default);
+        cs_scalar = reaction.lookupOrDefault("cs",cs_default);
 
 /*        forAll(Y_, speciesi)
 		{
@@ -164,12 +164,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 		cs = new volScalarField(
 				IOobject(
              	    word("cs"),
-             	    Y_[0].v().mesh().time().timeName(),
-             		Y_[0].v().mesh(),
+             	    Y_[0].mesh().time().timeName(),
+             		Y_[0].mesh(),
              		IOobject::NO_READ,
              		IOobject::NO_WRITE
             	),
-            	Y_[0].v().mesh(),
+            	Y_[0].mesh(),
             	cs_scalar
 			);
         /*    }
@@ -190,12 +190,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         binary = new volScalarField(
                     IOobject(
                         word("cs"),
-                        Y_[0].v().mesh().time().timeName(),
-                        Y_[0].v().mesh(),
+                        Y_[0].mesh().time().timeName(),
+                        Y_[0].mesh(),
                         IOobject::NO_READ,
                         IOobject::NO_WRITE
                     ),
-                    Y_[0].v().mesh(),
+                    Y_[0].mesh(),
                     dimensionedScalar("",dimless,1)
                 );
 
@@ -311,6 +311,39 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 {
     massConservative_ = massConservative;
+
+    binary.primitiveFieldRef()=1;
+    cs.primitiveFieldRef()=cs_default;
+
+    forAll(Y_, speciesi) 
+    {
+        if(influencedSpeciesK1 == speciesi){
+            const auto& field = Y_[speciesi].internalField();
+            auto& binaryField = binary.internalField();
+            auto& csField = cs.internalField();
+
+            forAll(field, cell){
+                if(cell==field.size()){
+                    if(field[cell-1]>=rho){
+                        binaryField[cell] = 0;
+                        csField[cell] = 0;
+                    }
+                }
+                else if(cell==0){
+                    if(field[cell+1]>=rho){
+                        binaryField[cell] = 0;
+                        csField[cell] = 0;
+                    }
+                }
+                else{
+                    if(field[cell-1]>=rho || field[cell+1]>=rho){
+                        binaryField[cell] = 0;
+                        csField[cell] = 0;
+                    }
+                }
+            }
+        }
+    }
 
     if(massConservative_)
     {
@@ -438,13 +471,12 @@ void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
         forAll(lhs, i)
         {
             sk2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
-            influencedSpeciesK2.setSize(1,lhs[i].index);
         }
 
         forAll(rhs, i)
         {
             sk2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
-            influencedSpeciesK2.setSize(1,rhs[i].index);
+            influencedSpeciesK2 = lhs[i].index;
         }
     }
     else{
@@ -472,11 +504,10 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     if(liesegang == 1){
         forAll(lhs, i){
             sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
-            influencedSpeciesK1.setSize(1,lhs[i].index);
         }
         forAll(rhs, i){
             sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
-            influencedSpeciesK1.setSize(1,rhs[i].index);
+            influencedSpeciesK1 = lhs[i].index;
         }
     }
     else{
@@ -524,61 +555,32 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         if(implicit && speciesj == speciesi)
         {
             term += fvm::Sp(k1_[speciesi][speciesi], Y_[speciesi]);
-
-            //falta agregar sk1_ al termino cuando se trabaja de forma implicita, queda pendiente hasta entender fvm::Sp
+            term += fvm::Sp(sk1_[speciesi][speciesi]/*escalon*/* binary, Y_[speciesi]);
 
             forAll(Y_, speciesk)
             {
                 term += fvm::Sp(k2_[speciesi][speciesi][speciesk]*Y_[speciesk], Y_[speciesi]);
+                term += fvm::Sp(sk2_[speciesi][speciesi][speciesk]*Y_[speciesk]*binary, Y_[speciesi]);
             }
         }
         else
         {
 
-
             term += k1_[speciesi][speciesj]*Y_[speciesj];
-            
-            // v
-            forAll(influencedSpeciesK1, speciesl){
-                if(influencedSpeciesK1[speciesl] == speciesi){
+            term += sk1_[speciesi][speciesj]*Y_[speciesj] /* escalon */ * binary );
 
-                    const auto& field = Y_[speciesi].internalField();
-                    const auto& binaryField = binary.internalField();
-                    const auto& csField = binary.internalField();
-
-                    forAll(field, cell){
-                        if(field[cell]>=rho){
-                            binaryField[cell] = 0;  //cell en binaryField es misma posicion para field?
-                            if(cell>0){
-                                cs[cell-1] = 0;
-                            }
-                            cs[cell+1]=0;
-                        }
-                    }
-                    
-                    term += cmptMultiply(cmptMultiply(sk1_[speciesi][speciesj]*Y_[speciesj] , /* escalon */ ), binary );
-                }
-            }
-            //^
 
             forAll(Y_, speciesk)
             {
                 if(implicit && speciesk == speciesi)
                 {
                     term += fvm::Sp(k2_[speciesi][speciesj][speciesi]*Y_[speciesj], Y_[speciesi]);
+                    term += fvm::Sp(sk2_[speciesi][speciesj][speciesi]*Y_[speciesj]*binary, Y_[speciesi]);
                 }
                 else
                 {
                     term += k2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
-                    
-                    // v
-                    forAll(influencedSpeciesK2, speciesl){
-                        if(influencedSpeciesK2[speciesl] == speciesi){
-                            term += sk2_[speciesi][speciesj][speciesk]*Y_[speciesj]*cmptMultiply( Y_[speciesk] , binary );
-                        }
-                    }
-                    //^
-                    
+                    term += sk2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk]*binary;
                 }
             }
         }

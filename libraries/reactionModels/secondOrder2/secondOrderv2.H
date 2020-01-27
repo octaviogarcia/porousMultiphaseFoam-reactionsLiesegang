@@ -136,12 +136,13 @@ private:
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;
 
-    labelList influencedSpecieK1;
-    labelList influencedSpecieK2;
+    label influencedSpecieK1;
+    label influencedSpecieK2;
 
     volScalarField cs;
     volScalarField binary;
     dimensionedScalar rho;
+    dimensionedScalar cs_scalar;
 };
 
 
