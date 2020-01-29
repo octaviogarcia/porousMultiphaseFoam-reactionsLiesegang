@@ -89,8 +89,6 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
     sk2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
 {
-	//List<autoPtr<volScalarField> > list_aux(Y_.size());
-	//cs = List< List<autoPtr<volScalarField> > >(Y_.size(),list_aux);
 
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
@@ -315,12 +313,25 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
     binary.primitiveFieldRef()=1;
     cs.primitiveFieldRef()=cs_default;
 
+    auto& binaryField = binary.internalField();
+    auto& csField = cs.internalField();
+
+    heaviField = new volScalarField(
+                    IOobject(
+                        word("cs"),
+                        Y_[0].mesh().time().timeName(),
+                        Y_[0].mesh(),
+                        IOobject::NO_READ,
+                        IOobject::NO_WRITE
+                    ),
+                    Y_[0].mesh(),
+                    dimensionedScalar("",dimless,1)
+                );
+
     forAll(Y_, speciesi) 
     {
         if(influencedSpeciesK1 == speciesi){
             const auto& field = Y_[speciesi].internalField();
-            auto& binaryField = binary.internalField();
-            auto& csField = cs.internalField();
 
             forAll(field, cell){
                 if(cell==field.size()){
@@ -342,6 +353,11 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     }
                 }
             }
+        }
+
+        if(influencedSpeciesHS == speciesi){
+            const auto& cField = Y_[speciesi].internalField();
+            heaviside2InternalField(cField, csField,heaviField.internalField());
         }
     }
 
@@ -504,6 +520,7 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     if(liesegang == 1){
         forAll(lhs, i){
             sk1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+            influencedSpeciesHS = lhs[i].index;
         }
         forAll(rhs, i){
             sk1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
@@ -555,7 +572,7 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         if(implicit && speciesj == speciesi)
         {
             term += fvm::Sp(k1_[speciesi][speciesi], Y_[speciesi]);
-            term += fvm::Sp(sk1_[speciesi][speciesi]/*escalon*/* binary, Y_[speciesi]);
+            term += fvm::Sp(sk1_[speciesi][speciesi]* heaviField * binary, Y_[speciesi]);
 
             forAll(Y_, speciesk)
             {
@@ -567,7 +584,7 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         {
 
             term += k1_[speciesi][speciesj]*Y_[speciesj];
-            term += sk1_[speciesi][speciesj]*Y_[speciesj] /* escalon */ * binary );
+            term += sk1_[speciesi][speciesj]*Y_[speciesj] * heaviField * binary );
 
 
             forAll(Y_, speciesk)
@@ -587,6 +604,18 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
     }
 
     return tTerm;
+}
+
+void Foam::reactionModels::secondOrderv2::heaviside2InternalField
+(
+    DimensionedField<scalar, Foam::volMesh>& cField,
+    DimensionedField<scalar, Foam::volMesh>& csField,
+    DimensionedField<scalar, Foam::volMesh>& hIntfield
+)
+{
+    forAll(field,cell){
+        hIntfield[cell]=Foam::neg(cField[cell]-csField[cell]]);
+    }
 }
 
 // ************************************************************************* //
