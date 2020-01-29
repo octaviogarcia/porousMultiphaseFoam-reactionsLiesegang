@@ -632,7 +632,7 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 )
 {
     forAll(cField,cell){
-        hIntfield[cell]=Foam::neg(cField[cell]-csField[cell]);
+        hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
     }
 }
 
