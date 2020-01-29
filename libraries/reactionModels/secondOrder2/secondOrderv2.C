@@ -156,8 +156,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         const dimensionedScalar& liesegang = reaction.lookupOrDefault("liesegang",dimensionedScalar("",dimless,0.));
 
         dimensionedScalar rho_value = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
-        double* value = &rho.value();
-        *value = rho_value.value();
+        
+        if(rho_value.value()!=0){
+            double* prhovalue = &rho.value();
+            *prhovalue = rho_value.value();
+        }
 
         Info<< "    rho Loaded for reaction: " << rho.value() << endl;
 
@@ -167,8 +170,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         Info<< "    Liesegang: " << liesegang << endl;
 
         dimensionedScalar cs_default = reaction.lookupOrDefault("cs",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
-        value = &cs_scalar.value();
-        *value = cs_default.value();
+        
+        if(cs_default.value()!=0){
+            double* pcsvalue = &cs_scalar.value();
+            *pcsvalue = cs_default.value();
+        }
 
         Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
                 
@@ -289,27 +295,10 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
             	),
             	Y_[0].mesh(), cs_scalar
 			);
-
-/*    volScalarField binary(       //Field with check results on concentration levels (below rho (1) or above or equal (0))
-				IOobject(
-             	    word("binary"),
-             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
-             		IOobject::NO_READ, IOobject::NO_WRITE
-            	),
-            	Y_[0].mesh(), dimensionedScalar("",dimless,1)
-			);*/
-
-/*    volScalarField heaviField(        //Field with results of applying Heaviside Step function through Foam::neg() to each cell
-				IOobject(
-             	    word("heaviField"),
-             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
-             		IOobject::NO_READ, IOobject::NO_WRITE
-            	),
-            	Y_[0].mesh(), dimensionedScalar("",dimless,1)
-			);*/
     
-    //Impresion campo cs
-/*    int i=0;
+    //print cs field
+    Info << endl << endl << "cs field values:" << endl;
+    int i=0;
     const auto& field = cs.internalField();
     forAll(field, index){
         i++;
@@ -317,7 +306,11 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         if(i==5){
 	        Info << endl;
             i=0;}}
-*/    //
+    Info << endl << endl;
+    //
+
+    //print rho value 
+    Info << "rho value:" << rho.value() << endl << endl;
 
     auto binaryField = binary.internalField();
     auto csField = cs.internalField();
@@ -347,7 +340,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     }
                 }
             }
-            /*forAll(field, cell){
+            /*forAll(field, cell){          //inverse conditions
                 if(cell==field.size()){
                     if(field[cell]>=rho.value()){
                         binaryField[cell] = 0;
@@ -543,7 +536,6 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
         forAll(rhs, i){
             sk1[rhs[i].index][a] += rhs[i].stoichCoeff * k;
             influencedSpecieK1 = rhs[i].index;
-            //influencedSpecieK1_public = lhs[i].index;
         }
     }
     else{

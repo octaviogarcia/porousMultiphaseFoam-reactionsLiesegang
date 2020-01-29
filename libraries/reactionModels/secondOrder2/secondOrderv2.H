@@ -80,8 +80,6 @@ public:
 
     void postTransport() override;
 
-   // label influencedSpecieK1_public;
-
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -149,8 +147,8 @@ private:
     label influencedSpecieK2;
     label influencedSpecieHS;
 
-    volScalarField binary;
-    volScalarField heaviField;
+    volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
+    volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
 
     dimensionedScalar rho;
     dimensionedScalar cs_scalar;
