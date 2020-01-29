@@ -80,6 +80,8 @@ public:
 
     void postTransport() override;
 
+   // label influencedSpecieK1_public;
+
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 

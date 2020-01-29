@@ -510,7 +510,7 @@ void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
         forAll(rhs, i)
         {
             sk2[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
-            influencedSpecieK2 = lhs[i].index;
+            influencedSpecieK2 = rhs[i].index;
         }
     }
     else{
@@ -542,7 +542,8 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
         }
         forAll(rhs, i){
             sk1[rhs[i].index][a] += rhs[i].stoichCoeff * k;
-            influencedSpecieK1 = lhs[i].index;
+            influencedSpecieK1 = rhs[i].index;
+            //influencedSpecieK1_public = lhs[i].index;
         }
     }
     else{
