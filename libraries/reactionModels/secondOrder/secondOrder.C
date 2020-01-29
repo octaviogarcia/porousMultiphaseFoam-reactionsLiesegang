@@ -84,7 +84,9 @@ Foam::reactionModels::secondOrder::secondOrder
     Y_(composition.Y()),
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
-    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
+    k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
+    sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
+    sk2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
 {
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)

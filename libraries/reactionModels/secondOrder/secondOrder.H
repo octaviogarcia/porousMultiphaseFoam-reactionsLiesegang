@@ -134,6 +134,8 @@ private:
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
     List<List<dimensionedScalar>> k1_; // First-order rate constants
     List<List<List<dimensionedScalar>>> k2_; // Second-order rate constants
+    List<List<dimensionedScalar>> sk1_; // First-order rate constants
+    List<List<List<dimensionedScalar>>> sk2_; // Second-order rate constants
 
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;

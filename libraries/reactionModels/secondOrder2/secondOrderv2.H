@@ -127,9 +127,9 @@ private:
 
     void heaviside2InternalField
     (
-        DimensionedField<scalar, Foam::volMesh>& cField,
-        DimensionedField<scalar, Foam::volMesh>& csField,
-        DimensionedField<scalar, Foam::volMesh>& hIntfield
+        DimensionedField<scalar, Foam::volMesh> cField,
+        DimensionedField<scalar, Foam::volMesh> csField,
+        DimensionedField<scalar, Foam::volMesh> hIntfield
     );
 
     const PtrList<volScalarField>& Y_;
@@ -137,8 +137,8 @@ private:
     List<List<dimensionedScalar>> k1_; // First-order rate constants
     List<List<List<dimensionedScalar>>> k2_; // Second-order rate constants
 
-    List<List<dimensionedScalar>> sk1_; // First-order rate special constants 
-    List<List<List<dimensionedScalar>>> sk2_; // Second-order rate special constants
+    List<List<dimensionedScalar>> sk1; // First-order rate special constants 
+    List<List<List<dimensionedScalar>>> sk2; // Second-order rate special constants
 
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;
@@ -147,9 +147,9 @@ private:
     label influencedSpecieK2;
     label influencedSpecieHS;
 
-    volScalarField cs;          //Field with c* amount for each cell
-    volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
-    volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+    volScalarField binary;
+    volScalarField heaviField;
+
     dimensionedScalar rho;
     dimensionedScalar cs_scalar;
 };
