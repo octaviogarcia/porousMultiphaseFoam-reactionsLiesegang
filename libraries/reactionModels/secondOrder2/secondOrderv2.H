@@ -125,12 +125,10 @@ private:
         bool implicit
     ) const;
 
-    void heaviside2InternalField
-    (
-        DimensionedField<scalar, Foam::volMesh> cField,
-        DimensionedField<scalar, Foam::volMesh> csField,
-        DimensionedField<scalar, Foam::volMesh> hIntfield
-    );
+    void heaviside2InternalField(
+		const DimensionedField<scalar, Foam::volMesh>& cField,
+		const DimensionedField<scalar, Foam::volMesh>& csField
+	);
 
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants

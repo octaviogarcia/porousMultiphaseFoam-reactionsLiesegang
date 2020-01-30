@@ -74,6 +74,18 @@ void checkDims
 } // End unnamed namespace
 } // End namespace Foam
 
+// * * * * * * * * * * * * * * * * AUX  * * * * * * * * * * * * * * //
+template<class Type, template<class> class PatchField, class GeoMesh>
+void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
+	const auto& field = dfield.internalField();
+    forAll(field, index){        
+		if(index % 10 == 0){
+	        Foam::Info << Foam::endl;
+		}
+		Foam::Info<< " " << field[index];
+	}
+	Foam::Info << Foam::endl;
+}
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrderv2::secondOrderv2
@@ -97,8 +109,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     heaviField(binary),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
     cs_scalar("", rho)
-{
-    
+{    
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -156,10 +167,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         const dimensionedScalar& liesegang = reaction.lookupOrDefault("liesegang",dimensionedScalar("",dimless,0.));
 
         dimensionedScalar rho_value = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
-        
+		
         if(rho_value.value()!=0){
-            double* prhovalue = &rho.value();
-            *prhovalue = rho_value.value();
+			rho = rho_value;
         }
 
         Info<< "    rho Loaded for reaction: " << rho.value() << endl;
@@ -169,11 +179,10 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
         Info<< "    Liesegang: " << liesegang << endl;
 
-        dimensionedScalar cs_default = reaction.lookupOrDefault("cs",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
+        dimensionedScalar cs_value = reaction.lookupOrDefault("cs",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
         
-        if(cs_default.value()!=0){
-            double* pcsvalue = &cs_scalar.value();
-            *pcsvalue = cs_default.value();
+        if(cs_value.value()!=0){
+			cs_scalar = cs_value;
         }
 
         Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
@@ -182,7 +191,6 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         {
             const dimensionedScalar& kb = reaction.lookup("kb");
             order = addReaction(rhs, lhs, kb, liesegang.value()); //- Add the inverse reaction
-
             Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
 
@@ -287,89 +295,64 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 
 void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 {
-    volScalarField cs(        //Field with c* amount for each cell
-				IOobject(
-             	    word("cs"),
-             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
-             		IOobject::NO_READ, IOobject::NO_WRITE
-            	),
-            	Y_[0].mesh(), cs_scalar
-			);
-    
-    //print cs field
-    Info << endl << endl << "cs field values:" << endl;
-    int i=0;
-    const auto& field = cs.internalField();
-    forAll(field, index){
-        i++;
-		Info<< " " << field[index];
-        if(i==5){
-	        Info << endl;
-            i=0;}}
-    Info << endl << endl;
-    //
-
     //print rho value 
     Info << "rho value:" << rho.value() << endl << endl;
 
-    auto binaryField = binary.internalField();
-    auto csField = cs.internalField();
-
-    forAll(Y_, speciesi) 
-    {
-        if(influencedSpecieK1 == speciesi){
-            const auto& field = Y_[speciesi].internalField();
-
-            forAll(field, cell){
-                if(cell==field.size()){
-                    if(field[cell-1]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell] = 0;
-                    }
-                }
-                else if(cell==0){
-                    if(field[cell+1]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell] = 0;
-                    }
-                }
-                else{
-                    if(field[cell-1]>=rho.value() || field[cell+1]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell] = 0;
-                    }
-                }
-            }
-            /*forAll(field, cell){          //inverse conditions
-                if(cell==field.size()){
-                    if(field[cell]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell-1] = 0;
-                    }
-                }
-                else if(cell==0){
-                    if(field[cell]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell+1] = 0;
-                    }
-                }
-                else{
-                    if(field[cell]>=rho.value()){
-                        binaryField[cell] = 0;
-                        csField[cell-1] = 0;
-                        csField[cell+1] = 0;
-                    }
-                }
-            }*/
-            //
-        }
-
-        if(influencedSpecieHS == speciesi){
-            auto cField = Y_[speciesi].internalField();
-            heaviside2InternalField(cField, csField,heaviField.internalField());
-        }
-    }
-
+	// Para nuestro caso, influenced species K1 y K2 son el lado derecho
+	// de las reacciones C = D osea D.
+	if(influencedSpecieK1 != influencedSpecieK2){
+		FatalErrorIn("secondOrderv2.C")
+		<< "InfluencedSpecieK1,K2 valores distintos."
+		<< abort(FatalError);
+	}
+	volScalarField cs(        //Field with c* amount for each cell
+		IOobject(
+			word("cs"),
+			Y_[0].mesh().time().timeName(), 
+			Y_[0].mesh(),
+			IOobject::NO_READ, 
+			IOobject::NO_WRITE
+		),
+		Y_[0].mesh(), 
+		cs_scalar
+	);
+    
+    // print cs field
+    Info << endl << endl << "cs field values:" << endl;
+	//printField(cs);
+		
+	binary.ref().field() = 1;
+	
+	auto binaryField = binary.ref();
+    auto csField = cs.ref();
+	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
+	forAll(fieldTargetMass, cell){
+		if(cell == fieldTargetMass.size()){
+			if(fieldTargetMass[cell-1] >= rho.value()){
+				binaryField[cell] = 0;
+				csField[cell] = 0;
+			}
+		}
+		else if(cell == 0){
+			if(fieldTargetMass[cell+1] >= rho.value()){
+				binaryField[cell] = 0;
+				csField[cell] = 0;
+			}
+		}
+		else{
+			if(fieldTargetMass[cell-1] >= rho.value() 
+			|| fieldTargetMass[cell+1] >= rho.value()){
+				binaryField[cell] = 0;
+				csField[cell] = 0;
+			}
+		}
+	}
+	
+	auto cField = Y_[influencedSpecieHS].internalField();
+	heaviside2InternalField(cField, csField);
+	
+	//printField(heaviField);
+	
     massConservative_ = massConservative;
 
     if(massConservative_)
@@ -583,7 +566,7 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         if(implicit && speciesj == speciesi)
         {
             term += fvm::Sp(k1_[speciesi][speciesi], Y_[speciesi]);
-            term += fvm::Sp(sk1[speciesi][speciesi]* heaviField * binary, Y_[speciesi]);
+            term += fvm::Sp(sk1[speciesi][speciesi] * heaviField * binary, Y_[speciesi]);
 
             forAll(Y_, speciesk)
             {
@@ -593,7 +576,6 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
         }
         else
         {
-
             term += k1_[speciesi][speciesj]*Y_[speciesj];
             term += sk1[speciesi][speciesj]*Y_[speciesj] * heaviField * binary;
 
@@ -618,11 +600,11 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
 
 void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 (
-    DimensionedField<scalar, Foam::volMesh> cField,
-    DimensionedField<scalar, Foam::volMesh> csField,
-    DimensionedField<scalar, Foam::volMesh> hIntfield
+    const DimensionedField<scalar, Foam::volMesh>& cField,
+    const DimensionedField<scalar, Foam::volMesh>& csField
 )
 {
+	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
         hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
     }
