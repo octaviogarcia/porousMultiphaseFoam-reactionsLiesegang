@@ -295,6 +295,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 
 void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 {
+    if(!flag1st){
+        return;
+    }
     //print rho value 
     Info << "rho value:" << rho.value() << endl << endl;
 
@@ -318,7 +321,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	);
     
     // print cs field
-    Info << endl << endl << "cs field values:" << endl;
+    //Info << endl << endl << "cs field values:" << endl;
 	//printField(cs);
 		
 	binary.ref().field() = 1;
@@ -329,30 +332,32 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	forAll(fieldTargetMass, cell){
 		if(cell == fieldTargetMass.size()){
 			if(fieldTargetMass[cell-1] >= rho.value()){
-				binaryField[cell] = 0;
 				csField[cell] = 0;
 			}
 		}
 		else if(cell == 0){
 			if(fieldTargetMass[cell+1] >= rho.value()){
-				binaryField[cell] = 0;
 				csField[cell] = 0;
 			}
 		}
 		else{
 			if(fieldTargetMass[cell-1] >= rho.value() 
 			|| fieldTargetMass[cell+1] >= rho.value()){
-				binaryField[cell] = 0;
 				csField[cell] = 0;
 			}
 		}
+
+        if(fieldTargetMass[cell] >= rho.value()){
+            binary[cell] = 0;
+        }
 	}
 	
 	auto cField = Y_[influencedSpecieHS].internalField();
 	heaviside2InternalField(cField, csField);
 	
 	//printField(heaviField);
-	
+	flag1st=false;
+
     massConservative_ = massConservative;
 
     if(massConservative_)
@@ -399,7 +404,9 @@ bool Foam::reactionModels::secondOrderv2::alwaysMassConservative() const
 
 
 void Foam::reactionModels::secondOrderv2::postTransport()
-{}
+{
+    flag1st=true;
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

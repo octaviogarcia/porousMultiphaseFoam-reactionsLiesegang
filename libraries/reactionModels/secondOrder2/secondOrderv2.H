@@ -144,6 +144,7 @@ private:
     label influencedSpecieK1;
     label influencedSpecieK2;
     label influencedSpecieHS;
+    bool flag1st=true;
 
     volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
