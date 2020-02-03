@@ -86,6 +86,16 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 	}
 	Foam::Info << Foam::endl;
 }
+
+//No estoy seguro si openfoam maneja floats o doubles
+template<typename F>
+F sigmoidAbs(F x){
+	const int steepness = 4096;
+	x*=steepness;
+	const F negOne_to_one = x/(1+abs(x));
+	const F zero_to_one = (negOne_to_one + 1)/2.0;
+	return zero_to_one;
+}
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrderv2::secondOrderv2
@@ -108,8 +118,19 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
     heaviField(binary),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
-    cs_scalar("", rho)
-{    
+    cs_scalar("", rho),
+	//@HACK ver si hay alguna forma de iniciarlo mejor
+	cradius("",
+		dimensionedScalar(
+			"",
+			dimensionSet(0,1,0,0,0,0,0),
+			Y_[0].mesh().delta().ref()[5].x()
+		)
+	)
+{
+	// Asi se puede scar la cantidad de celdas, si podemos sacar la longitud del mesh o pasarlo como argumento
+	// Seria mas facil
+    // Info<< "Cells " << Y_[0].mesh().cells().size() << endl;
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -171,8 +192,15 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         if(rho_value.value()!=0){
 			rho = rho_value;
         }
+		
+		dimensionedScalar cradius_value = reaction.lookupOrDefault("cradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));
+		
+		if(cradius_value.value()!=0){
+			cradius = cradius_value;
+		}
 
-        Info<< "    rho Loaded for reaction: " << rho.value() << endl;
+        Info<<"   rho Loaded for reaction: " << rho.value() << endl;
+		Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
@@ -298,7 +326,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
     if(!flag1st){
         return;
     }
-    //print rho value 
+	
     Info << "rho value:" << rho.value() << endl << endl;
 
 	// Para nuestro caso, influenced species K1 y K2 son el lado derecho
@@ -308,7 +336,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		<< "InfluencedSpecieK1,K2 valores distintos."
 		<< abort(FatalError);
 	}
-	volScalarField cs(        //Field with c* amount for each cell
+	volScalarField cs( // Field with c* amount for each cell
 		IOobject(
 			word("cs"),
 			Y_[0].mesh().time().timeName(), 
@@ -319,37 +347,48 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		Y_[0].mesh(), 
 		cs_scalar
 	);
-    
-    // print cs field
-    //Info << endl << endl << "cs field values:" << endl;
-	//printField(cs);
-		
-	binary.ref().field() = 1;
 	
+	binary.ref().field() = 1;
 	auto binaryField = binary.ref();
     auto csField = cs.ref();
 	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
+	
+	//@hack;
+	// [cells] = RADIUS [m] / DELTAX [m/cell]
+	const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
+	Info << "Cell check radius " << r << endl;
+	//if r = 1.25
+	const int int_r = ceil(r); // 2
+	const double diff_r = int_r - r; //0.75
+	
 	forAll(fieldTargetMass, cell){
-		if(cell == fieldTargetMass.size()){
-			if(fieldTargetMass[cell-1] >= rho.value()){
-				csField[cell] = 0;
-			}
-		}
-		else if(cell == 0){
-			if(fieldTargetMass[cell+1] >= rho.value()){
-				csField[cell] = 0;
-			}
-		}
-		else{
-			if(fieldTargetMass[cell-1] >= rho.value() 
-			|| fieldTargetMass[cell+1] >= rho.value()){
-				csField[cell] = 0;
-			}
-		}
+		//if r = 1.25 => int_r = 2 => we check [cell-2,cell-1,cell,cell+1,cell+2]
+		const int begin = max(cell - int_r, 0);
+		const int end = min(cell + int_r, fieldTargetMass.size() - 1);
+		for(int i = begin;i<=end;i++){
+			//converts [cell-2,cell-1,cell,cell+1,cell+2] to [2,1,0,1,2]
+			const int inside_pos = abs(i-cell);
+			//[0.75,0,0,0,0.75]
+			const double val = (inside_pos > r)*diff_r;
 
-        if(fieldTargetMass[cell] >= rho.value()){
+			const double s = sigmoidAbs(fieldTargetMass[i] - rho.value());
+			// csField[cell]*val es 0 o proporcional a lo ocupado
+			// osea que que s en [0,1] -> [csField[cell],csField[cell]*val]
+			// que la mayoria del tiempo (ejh para las de adentro) es [0,1] -> [csField[cell],0]
+			// en nuestro caso para los bordes es [0,1] -> [csField[cell],0.75*csField[cell]]
+			csField[cell] = s*csField[cell]*val + (1-s)*csField[cell];
+			/*
+			if(fieldTargetMass[i] >= rho.value()){
+				csField[cell] *= val;
+			}
+			*/
+		}
+		binary[cell] = sigmoidAbs(rho.value() - fieldTargetMass[cell]);
+		/*
+		if(fieldTargetMass[cell] >= rho.value()){
             binary[cell] = 0;
         }
+		*/
 	}
 	
 	auto cField = Y_[influencedSpecieHS].internalField();
@@ -613,7 +652,11 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 {
 	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
+		// Esto es literalmente x > 0? 1 : 0
         hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+		// Con un sigmoide no funciona, supongo que tiene que ser muy steep o no funciona
+		// Entonces creo que es mejor dejarlo con un escalon nomas.
+		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell]);
     }
 }
 
