@@ -89,8 +89,7 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 
 //No estoy seguro si openfoam maneja floats o doubles
 template<typename F>
-F sigmoidAbs(F x){
-	const int steepness = 4096;
+F sigmoidAbs(F x,F steepness){
 	x*=steepness;
 	const F negOne_to_one = x/(1+abs(x));
 	const F zero_to_one = (negOne_to_one + 1)/2.0;
@@ -126,7 +125,8 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			dimensionSet(0,1,0,0,0,0,0),
 			Y_[0].mesh().delta().ref()[5].x()
 		)
-	)
+	),
+	steepness(4096)
 {
 	// Asi se puede scar la cantidad de celdas, si podemos sacar la longitud del mesh o pasarlo como argumento
 	// Seria mas facil
@@ -197,6 +197,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 		
 		if(cradius_value.value()!=0){
 			cradius = cradius_value;
+		}
+		
+		dimensionedScalar steepness_value = reaction.lookupOrDefault("steepness",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),0.));
+		if(steepness_value.value() != 0){
+			steepness = steepness_value.value();
 		}
 
         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
@@ -365,13 +370,13 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		//if r = 1.25 => int_r = 2 => we check [cell-2,cell-1,cell,cell+1,cell+2]
 		const int begin = max(cell - int_r, 0);
 		const int end = min(cell + int_r, fieldTargetMass.size() - 1);
-		for(int i = begin;i<=end;i++){
+		for(int i = begin;i<=end && csField[cell] > 0.0;i++){
 			//converts [cell-2,cell-1,cell,cell+1,cell+2] to [2,1,0,1,2]
 			const int inside_pos = abs(i-cell);
 			//[0.75,0,0,0,0.75]
 			const double val = (inside_pos > r)*diff_r;
 
-			const double s = sigmoidAbs(fieldTargetMass[i] - rho.value());
+			const double s = sigmoidAbs(fieldTargetMass[i] - rho.value(),steepness);
 			// csField[cell]*val es 0 o proporcional a lo ocupado
 			// osea que que s en [0,1] -> [csField[cell],csField[cell]*val]
 			// que la mayoria del tiempo (ejh para las de adentro) es [0,1] -> [csField[cell],0]
@@ -383,7 +388,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 			}
 			*/
 		}
-		binary[cell] = sigmoidAbs(rho.value() - fieldTargetMass[cell]);
+		binary[cell] = sigmoidAbs(rho.value() - fieldTargetMass[cell],steepness);
 		/*
 		if(fieldTargetMass[cell] >= rho.value()){
             binary[cell] = 0;
@@ -656,7 +661,7 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
         hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
 		// Con un sigmoide no funciona, supongo que tiene que ser muy steep o no funciona
 		// Entonces creo que es mejor dejarlo con un escalon nomas.
-		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell]);
+		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell],steepness);
     }
 }
 

@@ -152,6 +152,7 @@ private:
     dimensionedScalar rho;
     dimensionedScalar cs_scalar;
 	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many cells to look around to check rho.
+	scalar steepness;
 };
 
 
