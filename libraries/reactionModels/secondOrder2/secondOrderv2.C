@@ -363,8 +363,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
 	Info << "Cell check radius " << r << endl;
 	//if r = 1.25
-	const int int_r = ceil(r); // 2
-	const double diff_r = int_r - r; //0.75
+	const int int_r = round(r); // 2
 	
 	forAll(fieldTargetMass, cell){
 		//if r = 1.25 => int_r = 2 => we check [cell-2,cell-1,cell,cell+1,cell+2]
@@ -373,27 +372,13 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		for(int i = begin;i<=end && csField[cell] > 0.0;i++){
 			//converts [cell-2,cell-1,cell,cell+1,cell+2] to [2,1,0,1,2]
 			const int inside_pos = abs(i-cell);
-			//[0.75,0,0,0,0.75]
-			const double val = (inside_pos > r)*diff_r;
-
-			const double s = sigmoidAbs(fieldTargetMass[i] - rho.value(),steepness);
-			// csField[cell]*val es 0 o proporcional a lo ocupado
-			// osea que que s en [0,1] -> [csField[cell],csField[cell]*val]
-			// que la mayoria del tiempo (ejh para las de adentro) es [0,1] -> [csField[cell],0]
-			// en nuestro caso para los bordes es [0,1] -> [csField[cell],0.75*csField[cell]]
-			csField[cell] = s*csField[cell]*val + (1-s)*csField[cell];
-			/*
-			if(fieldTargetMass[i] >= rho.value()){
-				csField[cell] *= val;
-			}
-			*/
+			const double overTargetMass = fieldTargetMass[i] - rho.value();
+			const int is_not_center = inside_pos != 0;
+			const double s = is_not_center*sigmoidAbs(overTargetMass,steepness);
+			
+			csField[cell] = (1-s)*csField[cell];
 		}
 		binary[cell] = sigmoidAbs(rho.value() - fieldTargetMass[cell],steepness);
-		/*
-		if(fieldTargetMass[cell] >= rho.value()){
-            binary[cell] = 0;
-        }
-		*/
 	}
 	
 	auto cField = Y_[influencedSpecieHS].internalField();

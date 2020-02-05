@@ -26,7 +26,7 @@
         CEqn.solve("C");
 
         dimensionedScalar vSmall("vSmall", C.dimensions(), VSMALL);
-
+		
         Cresidual = max(Cresidual, gMax(mag(((C-C.prevIter())/(C.prevIter()+vSmall)))->internalField()));
     }
 }
