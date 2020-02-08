@@ -17,7 +17,9 @@
             
             Info<< "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
 
-        } while(Cresidual > reactionTol);
+        } while(iterTransport < 7); 
+		//while(Cresidual > reactionTol);
+		
 
         if(reactionMassConservative && !reactionModel->alwaysMassConservative())
         {

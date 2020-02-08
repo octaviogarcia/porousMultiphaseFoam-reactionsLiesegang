@@ -328,9 +328,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 
 void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 {
-    if(!flag1st){
+    /*if(!flag1st){
         return;
-    }
+    }*/
 	
     Info << "rho value:" << rho.value() << endl << endl;
 
@@ -354,10 +354,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	);
 	
 	binary.ref().field() = 1;
-	auto binaryField = binary.ref();
-    auto csField = cs.ref();
 	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
-	
 	//@hack;
 	// [cells] = RADIUS [m] / DELTAX [m/cell]
 	const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
@@ -366,25 +363,21 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	const int int_r = round(r); // 2
 	
 	forAll(fieldTargetMass, cell){
-		//if r = 1.25 => int_r = 2 => we check [cell-2,cell-1,cell,cell+1,cell+2]
-		const int begin = max(cell - int_r, 0);
-		const int end = min(cell + int_r, fieldTargetMass.size() - 1);
-		for(int i = begin;i<=end && csField[cell] > 0.0;i++){
-			//converts [cell-2,cell-1,cell,cell+1,cell+2] to [2,1,0,1,2]
-			const int inside_pos = abs(i-cell);
-			const double overTargetMass = fieldTargetMass[i] - rho.value();
-			const int is_not_center = inside_pos != 0;
-			const double s = is_not_center*sigmoidAbs(overTargetMass,steepness);
-			
-			csField[cell] = (1-s)*csField[cell];
+		bool leftSaturated = true;
+		bool rightSaturated = true;
+		for(int i = 1;i<=int_r;i++){
+			int left = max(cell - i,0);
+			int right = min(cell + i, fieldTargetMass.size() - 1);
+			leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
+			rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
 		}
-		binary[cell] = sigmoidAbs(rho.value() - fieldTargetMass[cell],steepness);
+		cs[cell] *= !leftSaturated  * !rightSaturated;
+		binary[cell] = !(fieldTargetMass[cell] >= rho.value());
 	}
 	
 	auto cField = Y_[influencedSpecieHS].internalField();
-	heaviside2InternalField(cField, csField);
+	heaviside2InternalField(cField, cs.ref());
 	
-	//printField(heaviField);
 	flag1st=false;
 
     massConservative_ = massConservative;
