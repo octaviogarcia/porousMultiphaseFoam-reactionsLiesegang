@@ -103,7 +103,7 @@
                 initialIncrease=false;
             }
 
-            if(!initialIncrease && cMax < cs-0.1){
+            if(!initialIncrease && cMax < cs-0.1 ){
                 Info<< "-> Computing new deltaT according max concentration..." << endl;
                 scalar cMaxPrev = reactionModel->getPrevMaxC();
 
@@ -117,40 +117,34 @@
                 dimensionedScalar redPercentage = Foam::exp(dimensionedScalar("",dimless,(-(difference*redCoef))));
                 
                 Info<< "-> redPercentage: " << redPercentage.value() << endl;
-                Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
 
                 if(difference > 0.05){  //while cmax < cs-0.05
-                    if(cMax-cMaxPrev>0 && cMax > cs-0.5){   // c is increasing and close to saturation
+                    if(cMax-cMaxPrev>0 && cMax > cs-0.2){   // c is increasing and close to saturation
                         newDeltaT = newDeltaT*(1.0-redPercentage.value());
                     }
                     else if(cMax-cMaxPrev>0 && cMax < cs-0.5){  //c is increasing and far from saturation
                         newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
                     }
-                    else if(cMax-cMaxPrev<0 && cMax > cs-0.5){  //c is decreasing and close to saturation
+                    else if(cMax-cMaxPrev<0 && cMax > cs-0.2){  //c is decreasing and close to saturation
                         newDeltaT = newDeltaT;
                     }
                     else if(cMax-cMaxPrev<0 && cMax < cs-0.5){  //c is decreasing and far from saturation
                         newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
                     }
-
                     newDeltaT = max(newDeltaT, minDeltaT);
-                    runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
                 }
                 else{       //when difference between cs and cMax is already too small
-
                     newDeltaT = minDeltaT;
-                    runTime.setDeltaT(minDeltaT);
-                    
                 }
             }
-            else{   //increments before first bands (before completing first increase) 
-
+            else if(initialIncrease /*cMax > cs+0.1*/){   //increments before first bands (before completing first increase) 
                     newDeltaT = newDeltaT*1.2;
-                    Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
-                    runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
             }
 
+            Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
+            runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
             Info<< "-> New deltaT = " <<  runTime.deltaTValue() << endl;
+            
             //-^
         }
     }
