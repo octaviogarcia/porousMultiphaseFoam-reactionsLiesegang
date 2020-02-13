@@ -56,6 +56,9 @@ int main(int argc, char *argv[])
     #include "readEvent.H"
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    
+    bool updateDeltaT;
+    bool initialIncrease=true;
 
     while (runTime.run())
     {
@@ -63,6 +66,9 @@ int main(int argc, char *argv[])
         forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateIndex(runTime.timeOutputValue());
         if (outputEventIsPresent) outputEvent.updateIndex(runTime.timeOutputValue());
         forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateIndex(runTime.timeOutputValue());
+
+        updateDeltaT=false;
+
         #include "setDeltaT.H"
         runTime++;
 

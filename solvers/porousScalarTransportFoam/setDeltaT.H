@@ -142,6 +142,9 @@ if (adjustTimeStep)
 
     Info<< "deltaT = " <<  runTime.deltaTValue() << endl;
 
+} 
+else if(updateDeltaT){
+    //deltaT update code (according to concentration)
 }
 
 // ************************************************************************* //

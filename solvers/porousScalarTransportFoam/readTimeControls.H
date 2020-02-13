@@ -40,6 +40,9 @@ word timeScheme = mesh.ddtScheme("ddt(" + composition.Y(0).name() + ')');
 scalar maxDeltaT =
     runTime.controlDict().lookupOrDefault<scalar>("maxDeltaT", GREAT);
 
+scalar minDeltaT =
+    runTime.controlDict().lookupOrDefault<scalar>("minDeltaT", GREAT);
+
 EulerD3dt3Scheme d3dt3Operator(mesh,runTime.deltaTValue());
 Foam::fv::EulerD2dt2Scheme<scalar> d2dt2Operator(mesh);
 scalarList dCdTmax(composition.Y().size());

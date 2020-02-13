@@ -88,13 +88,14 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 }
 
 //No estoy seguro si openfoam maneja floats o doubles
-template<typename F>
+/*template<typename F>
 F sigmoidAbs(F x,F steepness){
 	x*=steepness;
-	const F negOne_to_one = x/(1+abs(x));
+	const F negOne_to_one = x/(1+abs(x)); //abs() trabaja con enteros nomas 
 	const F zero_to_one = (negOne_to_one + 1)/2.0;
 	return zero_to_one;
-}
+}*/
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrderv2::secondOrderv2
@@ -117,7 +118,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
     heaviField(binary),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
-    cs_scalar("", rho),
+    //cs_scalar("", rho),
 	//@HACK ver si hay alguna forma de iniciarlo mejor
 	cradius("",
 		dimensionedScalar(
@@ -188,13 +189,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         const dimensionedScalar& liesegang = reaction.lookupOrDefault("liesegang",dimensionedScalar("",dimless,0.));
 
         dimensionedScalar rho_value = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
-		
         if(rho_value.value()!=0){
 			rho = rho_value;
         }
 		
 		dimensionedScalar cradius_value = reaction.lookupOrDefault("cradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));
-		
 		if(cradius_value.value()!=0){
 			cradius = cradius_value;
 		}
@@ -204,8 +203,15 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			steepness = steepness_value.value();
 		}
 
+        dimensionedScalar redCoef_value = reaction.lookupOrDefault("redCoef",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),1));
+		if(redCoef_value.value() != 1){
+			reductionCoef = redCoef_value.value();
+		}
+
         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
 		Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
+        Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
+        Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
@@ -378,6 +384,8 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	auto cField = Y_[influencedSpecieHS].internalField();
 	heaviside2InternalField(cField, cs.ref());
 	
+    //printField(heaviField);
+
 	flag1st=false;
 
     massConservative_ = massConservative;
@@ -641,6 +649,31 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 		// Entonces creo que es mejor dejarlo con un escalon nomas.
 		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell],steepness);
     }
+}
+
+double Foam::reactionModels::secondOrderv2::getRedCoef()
+{
+    return reductionCoef;
+}
+
+double Foam::reactionModels::secondOrderv2::getCsValue()
+{
+    return cs_scalar.value();
+}
+
+int Foam::reactionModels::secondOrderv2::getInfluencedSpecieHS()
+{
+    return influencedSpecieHS;
+}
+
+void Foam::reactionModels::secondOrderv2::setPrevMaxC( scalar pmc)
+{
+    prevMaxC = pmc;    
+}
+
+double Foam::reactionModels::secondOrderv2::getPrevMaxC()
+{
+    return prevMaxC;
 }
 
 // ************************************************************************* //

@@ -86,7 +86,8 @@ private:
     (
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
-        const dimensionedScalar& k
+        const dimensionedScalar& k,
+        const label liesegang
     );
 
     //- Add a second order reaction (first order on both a and b)
@@ -95,16 +96,9 @@ private:
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
         const dimensionedScalar& k,
+        const label liesegang,
         label a,
         label b
-    );
-    //- Add a second order reaction (second order on a)
-    void addSecondOrderReaction 
-    (
-        const List<specieCoeffs>& lhs,
-        const List<specieCoeffs>& rhs,
-        const dimensionedScalar& k,
-        label a
     );
 
     //- Add a first order reaction (first order on a)
@@ -113,6 +107,7 @@ private:
         const List<specieCoeffs>& lhs,
         const List<specieCoeffs>& rhs,
         const dimensionedScalar& k,
+        const label liesegang,
         label a
     );
 
@@ -130,15 +125,34 @@ private:
         bool implicit
     ) const;
 
+    void heaviside2InternalField(
+		const DimensionedField<scalar, Foam::volMesh>& cField,
+		const DimensionedField<scalar, Foam::volMesh>& csField
+	);
+
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
     List<List<dimensionedScalar>> k1_; // First-order rate constants
     List<List<List<dimensionedScalar>>> k2_; // Second-order rate constants
-    List<List<dimensionedScalar>> sk1_; // First-order rate constants
-    List<List<List<dimensionedScalar>>> sk2_; // Second-order rate constants
+
+    List<List<dimensionedScalar>> sk1; // First-order rate special constants 
+    List<List<List<dimensionedScalar>>> sk2; // Second-order rate special constants
 
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;
+
+    label influencedSpecieK1;
+    label influencedSpecieK2;
+    label influencedSpecieHS;
+    bool flag1st=true;
+
+    volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
+    volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+
+    dimensionedScalar rho;
+    dimensionedScalar cs_scalar;
+	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many cells to look around to check rho.
+	scalar steepness;
 };
 
 

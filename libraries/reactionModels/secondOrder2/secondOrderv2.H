@@ -80,6 +80,16 @@ public:
 
     void postTransport() override;
 
+    double getRedCoef() override;
+
+    double getCsValue() override;
+
+    int getInfluencedSpecieHS() override;
+
+    void setPrevMaxC( scalar pmc) override;
+
+    double getPrevMaxC() override;
+
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -143,16 +153,21 @@ private:
 
     label influencedSpecieK1;
     label influencedSpecieK2;
-    label influencedSpecieHS;
+
     bool flag1st=true;
 
     volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
 
     dimensionedScalar rho;
-    dimensionedScalar cs_scalar;
 	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many cells to look around to check rho.
 	scalar steepness;
+
+    scalar reductionCoef=1.0;
+    dimensionedScalar cs_scalar=dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
+    scalar prevMaxC = 0.0;
+    label influencedSpecieHS;
+
 };
 
 

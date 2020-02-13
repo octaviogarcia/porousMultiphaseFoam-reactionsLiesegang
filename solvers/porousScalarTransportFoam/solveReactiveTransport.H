@@ -7,6 +7,12 @@
     scalar Cresidual;
     if(reactionModel->needsSubcycling())
     {
+        reactionModel->setPrevMaxC(
+                            max(
+                                (composition.Y( reactionModel->getInfluencedSpecieHS() )).internalField())
+                                .value()
+                            );
+
         scalar iterTransport = 0;
         do
         {
@@ -82,7 +88,70 @@
             << " mass(" << speciesName << ") = " << fvc::domainIntegrate(R*C*Saturation*eps).value()
             << " dCmax = " << dCdTmax[speciesi]*runTime.deltaTValue()
             << endl;
+        
+        if(speciesi == reactionModel->getInfluencedSpecieHS()){
+            updateDeltaT=true;
+            
+            //-v
+            scalar redCoef = reactionModel->getRedCoef();
+            scalar cs = reactionModel->getCsValue();
+            scalar cMax = max(C.internalField()).value();
+            scalar newDeltaT = runTime.deltaTValue();
 
+            if (cMax >9.0)
+            {
+                initialIncrease=false;
+            }
+
+            if(!initialIncrease && cMax < cs){
+                Info<< "-> Computing new deltaT according max concentration..." << endl;
+                scalar cMaxPrev = reactionModel->getPrevMaxC();
+
+                scalar difference = cs-cMax;
+                Info<< "-> cmaxprev: " << cMaxPrev << endl;
+                Info<< "-> cs-cmax: " << difference << endl;
+                if (difference<0.0){
+                    difference = difference * -1.0;
+                }
+
+                dimensionedScalar redPercentage = Foam::exp(dimensionedScalar("",dimless,(-(difference*redCoef))));
+                
+                Info<< "-> redPercentage: " << redPercentage.value() << endl;
+                Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
+
+                if(difference > 0.05){  //while cmax < cs-0.05
+                    if(cMax-cMaxPrev>0 && cMax > cs-1.0){   // c is increasing and close to saturation
+                        newDeltaT = newDeltaT*(1.0-redPercentage.value());
+                    }
+                    else if(cMax-cMaxPrev>0 && cMax < cs-1.0){  //c is increasing and far from saturation
+                        newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
+                    }
+                    else if(cMax-cMaxPrev<0 && cMax > cs-1.0){  //c is decreasing and close to saturation
+                        newDeltaT = newDeltaT;
+                    }
+                    else if(cMax-cMaxPrev<0 && cMax < cs-1.0){  //c is decreasing and far from saturation
+                        newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
+                    }
+
+                    runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
+                }
+                else{       //when difference between cs and cMax is already too small
+
+                    newDeltaT = minDeltaT;
+                    runTime.setDeltaT(minDeltaT);
+                    
+                }
+            }
+            else{   //increments before first bands (before completing first increase) 
+
+                    newDeltaT = newDeltaT*1.2;
+                    Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
+                    runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
+            }
+
+            Info<< "-> New deltaT = " <<  runTime.deltaTValue() << endl;
+            //-^
+        }
     }
 
 }

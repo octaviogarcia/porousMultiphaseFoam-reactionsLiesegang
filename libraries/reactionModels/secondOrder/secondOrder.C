@@ -26,6 +26,7 @@ License
 #include "secondOrder.H"
 #include "addToRunTimeSelectionTable.H"
 #include "fvmSup.H"
+#include "OStringStream.H"
 
 // * * * * * * * * * * * * * * Static Data Members * * * * * * * * * * * * * //
 
@@ -73,6 +74,27 @@ void checkDims
 } // End unnamed namespace
 } // End namespace Foam
 
+// * * * * * * * * * * * * * * * * AUX  * * * * * * * * * * * * * * //
+template<class Type, template<class> class PatchField, class GeoMesh>
+void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
+	const auto& field = dfield.internalField();
+    forAll(field, index){        
+		if(index % 10 == 0){
+	        Foam::Info << Foam::endl;
+		}
+		Foam::Info<< " " << field[index];
+	}
+	Foam::Info << Foam::endl;
+}
+
+//No estoy seguro si openfoam maneja floats o doubles
+template<typename F>
+F sigmoidAbs(F x,F steepness){
+	x*=steepness;
+	const F negOne_to_one = x/(1+abs(x));
+	const F zero_to_one = (negOne_to_one + 1)/2.0;
+	return zero_to_one;
+}
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrder::secondOrder
@@ -85,9 +107,30 @@ Foam::reactionModels::secondOrder::secondOrder
     k0_(Y_.size()),
     k1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
     k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
-    sk1_(Y_.size(), List<dimensionedScalar>(Y_.size())),
-    sk2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size())))
+    sk1(Y_.size(), List<dimensionedScalar>(Y_.size())),
+    sk2(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
+    binary(IOobject(
+             	    word("binary"),
+             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
+             		IOobject::NO_READ, IOobject::NO_WRITE
+            	),
+            	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
+    heaviField(binary),
+    rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
+    cs_scalar("", rho),
+	//@HACK ver si hay alguna forma de iniciarlo mejor
+	cradius("",
+		dimensionedScalar(
+			"",
+			dimensionSet(0,1,0,0,0,0,0),
+			Y_[0].mesh().delta().ref()[5].x()
+		)
+	),
+	steepness(4096)
 {
+	// Asi se puede scar la cantidad de celdas, si podemos sacar la longitud del mesh o pasarlo como argumento
+	// Seria mas facil
+    // Info<< "Cells " << Y_[0].mesh().cells().size() << endl;
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -96,10 +139,12 @@ Foam::reactionModels::secondOrder::secondOrder
         forAll(Y_, speciesj)
         {
             k1_[speciesi][speciesj].dimensions().reset(dimless/dimTime);
+            sk1[speciesi][speciesj].dimensions().reset(dimless/dimTime);
 
             forAll(Y_, speciesk)
             {
                 k2_[speciesi][speciesj][speciesk].dimensions().reset(dimVol/dimMoles/dimTime);
+                sk2[speciesi][speciesj][speciesk].dimensions().reset(dimVol/dimMoles/dimTime);
             }
         }
     }
@@ -140,20 +185,57 @@ Foam::reactionModels::secondOrder::secondOrder
         } 
 
         const dimensionedScalar& kf = reaction.lookup("kf");
+        const dimensionedScalar& liesegang = reaction.lookupOrDefault("liesegang",dimensionedScalar("",dimless,0.));
 
-        auto order = addReaction(lhs, rhs, kf);
+        dimensionedScalar rho_value = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
+		
+        if(rho_value.value()!=0){
+			rho = rho_value;
+        }
+		
+		dimensionedScalar cradius_value = reaction.lookupOrDefault("cradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));
+		
+		if(cradius_value.value()!=0){
+			cradius = cradius_value;
+		}
+		
+		dimensionedScalar steepness_value = reaction.lookupOrDefault("steepness",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),0.));
+		if(steepness_value.value() != 0){
+			steepness = steepness_value.value();
+		}
+
+        Info<<"   rho Loaded for reaction: " << rho.value() << endl;
+		Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
+
+        auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
         Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
+        Info<< "    Liesegang: " << liesegang << endl;
 
+        dimensionedScalar cs_value = reaction.lookupOrDefault("cs",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
+        
+        if(cs_value.value()!=0){
+			cs_scalar = cs_value;
+        }
+
+        Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
+                
         if(reaction.found("kb")) 
         {
             const dimensionedScalar& kb = reaction.lookup("kb");
-            order = addReaction(rhs, lhs, kb); //- Add the inverse reaction
-
+            order = addReaction(rhs, lhs, kb, liesegang.value()); //- Add the inverse reaction
             Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
 
         Info<< "}" << endl << endl;
+
+        Info<< "Loaded Reaction: " << endl;     //TODO: delete this
+        OStringStream reactionOSStream;         //<-|
+        Info<< specieCoeffs::reactionStr(       //  |
+                reactionOSStream                //  |
+                ,composition.species()          //  |
+                ,lhs                            //  |
+                ,rhs) << endl << endl;          //<-| 
     }
 
     //- If no reactions list found, read any reaction rate constants given with each species
@@ -246,6 +328,58 @@ Foam::reactionModels::secondOrder::secondOrder
 
 void Foam::reactionModels::secondOrder::correct(bool massConservative)
 {
+    if(!flag1st){
+        return;
+    }
+	
+    Info << "rho value:" << rho.value() << endl << endl;
+
+	// Para nuestro caso, influenced species K1 y K2 son el lado derecho
+	// de las reacciones C = D osea D.
+	if(influencedSpecieK1 != influencedSpecieK2){
+		FatalErrorIn("secondOrder.C")
+		<< "InfluencedSpecieK1,K2 valores distintos."
+		<< abort(FatalError);
+	}
+	volScalarField cs( // Field with c* amount for each cell
+		IOobject(
+			word("cs"),
+			Y_[0].mesh().time().timeName(), 
+			Y_[0].mesh(),
+			IOobject::NO_READ, 
+			IOobject::NO_WRITE
+		),
+		Y_[0].mesh(), 
+		cs_scalar
+	);
+	
+	binary.ref().field() = 1;
+	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
+	//@hack;
+	// [cells] = RADIUS [m] / DELTAX [m/cell]
+	const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
+	Info << "Cell check radius " << r << endl;
+	//if r = 1.25
+	const int int_r = round(r); // 2
+	
+	forAll(fieldTargetMass, cell){
+		bool leftSaturated = true;
+		bool rightSaturated = true;
+		for(int i = 1;i<=int_r;i++){
+			int left = max(cell - i,0);
+			int right = min(cell + i, fieldTargetMass.size() - 1);
+			leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
+			rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
+		}
+		cs[cell] *= !leftSaturated  * !rightSaturated;
+		binary[cell] = !(fieldTargetMass[cell] >= rho.value());
+	}
+	
+	auto cField = Y_[influencedSpecieHS].internalField();
+	heaviside2InternalField(cField, cs.ref());
+	
+	flag1st=false;
+
     massConservative_ = massConservative;
 
     if(massConservative_)
@@ -292,7 +426,9 @@ bool Foam::reactionModels::secondOrder::alwaysMassConservative() const
 
 
 void Foam::reactionModels::secondOrder::postTransport()
-{}
+{
+    flag1st=true;
+}
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -300,7 +436,8 @@ Foam::label Foam::reactionModels::secondOrder::addReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
-    const dimensionedScalar& k
+    const dimensionedScalar& k,
+    const label liesegang
 )
 {
     labelList orderIndices;
@@ -319,14 +456,28 @@ Foam::label Foam::reactionModels::secondOrder::addReaction
         orderIndices.setSize(orderIndices.size() + exponent, lhs[i].index);
     }
 
+    forAll(rhs, i)
+    {
+        auto exponent = floor(rhs[i].exponent);
+        if(rhs[i].exponent != exponent)
+        {
+            FatalErrorIn("secondOrder.C")
+                << "Non-integer exponents are not supported by this reaction model"
+                << abort(FatalError);
+        }
+
+        //- Append this species' index as many times as the exponent dictates
+        orderIndices.setSize(orderIndices.size() + exponent, rhs[i].index);
+    }
+
     switch(orderIndices.size())
     {
         case 2:
-            addSecondOrderReaction(lhs, rhs, k, orderIndices[0], orderIndices[1]);
+            addSecondOrderReaction(lhs, rhs, k, liesegang, orderIndices[0], orderIndices[1]);
             break;
 
         case 1:
-            addFirstOrderReaction(lhs, rhs, k, orderIndices[0]);
+            addFirstOrderReaction(lhs, rhs, k, liesegang, orderIndices[0]);
             break;
 
         case 0:
@@ -350,30 +501,34 @@ void Foam::reactionModels::secondOrder::addSecondOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
+    const label liesegang,
     label a,
     label b
 )
 {
-    forAll(lhs, i)
-    {
-        k2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
-    }
+    if(liesegang == 2){
+        forAll(lhs, i)
+        {
+            sk2[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
+        }
 
-    forAll(rhs, i)
-    {
-        k2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+        forAll(rhs, i)
+        {
+            sk2[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+            influencedSpecieK2 = rhs[i].index;
+        }
     }
-}
+    else{
+        forAll(lhs, i)
+        {
+            k2_[lhs[i].index][a][b] -= lhs[i].stoichCoeff * k;
+        }
 
-void Foam::reactionModels::secondOrder::addSecondOrderReaction
-(
-    const List<specieCoeffs>& lhs,
-    const List<specieCoeffs>& rhs,
-    const dimensionedScalar& k,
-    label a
-)
-{
-    addSecondOrderReaction(lhs, rhs, k, a, a);
+        forAll(rhs, i)
+        {
+            k2_[rhs[i].index][a][b] += rhs[i].stoichCoeff * k;
+        }
+    }
 }
 
 void Foam::reactionModels::secondOrder::addFirstOrderReaction
@@ -381,17 +536,27 @@ void Foam::reactionModels::secondOrder::addFirstOrderReaction
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
     const dimensionedScalar& k,
+    const label liesegang,
     label a
 )
 {
-    forAll(lhs, i)
-    {
-        k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+    if(liesegang == 1){
+        forAll(lhs, i){
+            sk1[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+            influencedSpecieHS = lhs[i].index;
+        }
+        forAll(rhs, i){
+            sk1[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+            influencedSpecieK1 = rhs[i].index;
+        }
     }
-
-    forAll(rhs, i)
-    {
-        k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+    else{
+        forAll(lhs, i){
+            k1_[lhs[i].index][a] -= lhs[i].stoichCoeff * k;
+        }
+        forAll(rhs, i){
+            k1_[rhs[i].index][a] += rhs[i].stoichCoeff * k;
+        }
     }
 }
 
@@ -430,31 +595,52 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrder::computeReacti
         if(implicit && speciesj == speciesi)
         {
             term += fvm::Sp(k1_[speciesi][speciesi], Y_[speciesi]);
+            term += fvm::Sp(sk1[speciesi][speciesi] * heaviField * binary, Y_[speciesi]);
 
             forAll(Y_, speciesk)
             {
                 term += fvm::Sp(k2_[speciesi][speciesi][speciesk]*Y_[speciesk], Y_[speciesi]);
+                term += fvm::Sp(sk2[speciesi][speciesi][speciesk]*Y_[speciesk]*binary, Y_[speciesi]);
             }
         }
         else
         {
             term += k1_[speciesi][speciesj]*Y_[speciesj];
+            term += sk1[speciesi][speciesj]*Y_[speciesj] * heaviField * binary;
 
             forAll(Y_, speciesk)
             {
                 if(implicit && speciesk == speciesi)
                 {
                     term += fvm::Sp(k2_[speciesi][speciesj][speciesi]*Y_[speciesj], Y_[speciesi]);
+                    term += fvm::Sp(sk2[speciesi][speciesj][speciesi]*Y_[speciesj]*binary, Y_[speciesi]);
                 }
                 else
                 {
                     term += k2_[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk];
+                    term += sk2[speciesi][speciesj][speciesk]*Y_[speciesj]*Y_[speciesk]*binary;
                 }
             }
         }
     }
 
     return tTerm;
+}
+
+void Foam::reactionModels::secondOrder::heaviside2InternalField
+(
+    const DimensionedField<scalar, Foam::volMesh>& cField,
+    const DimensionedField<scalar, Foam::volMesh>& csField
+)
+{
+	auto& hIntfield = heaviField.ref();
+    forAll(cField,cell){
+		// Esto es literalmente x > 0? 1 : 0
+        hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+		// Con un sigmoide no funciona, supongo que tiene que ser muy steep o no funciona
+		// Entonces creo que es mejor dejarlo con un escalon nomas.
+		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell],steepness);
+    }
 }
 
 // ************************************************************************* //
