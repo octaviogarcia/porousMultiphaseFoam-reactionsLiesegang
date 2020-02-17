@@ -112,10 +112,15 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     binary(IOobject(
              	    word("binary"),
              	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
-             		IOobject::NO_READ, IOobject::NO_WRITE
+             		IOobject::NO_READ, IOobject::AUTO_WRITE
             	),
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
-    heaviField(binary),
+    heaviField(IOobject(
+             	    word("heaviField"),
+             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
+             		IOobject::NO_READ, IOobject::AUTO_WRITE
+            	),
+            	Y_[0].mesh(), dimensionedScalar("",dimless,0)),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
     cs_scalar("", rho),
 	//@HACK ver si hay alguna forma de iniciarlo mejor
@@ -347,13 +352,15 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 			Y_[0].mesh().time().timeName(), 
 			Y_[0].mesh(),
 			IOobject::NO_READ, 
-			IOobject::NO_WRITE
+			IOobject::AUTO_WRITE
 		),
 		Y_[0].mesh(), 
 		cs_scalar
 	);
 	
+
 	binary.ref().field() = 1;
+
 	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
 	//@hack;
 	// [cells] = RADIUS [m] / DELTAX [m/cell]
@@ -370,14 +377,21 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 			int right = min(cell + i, fieldTargetMass.size() - 1);
 			leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
 			rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
-		}
+        }
 		cs[cell] *= !leftSaturated  * !rightSaturated;
 		binary[cell] = !(fieldTargetMass[cell] >= rho.value());
 	}
-	
-	auto cField = Y_[influencedSpecieHS].internalField();
-	heaviside2InternalField(cField, cs.ref());
-	
+    
+    auto cField = Y_[influencedSpecieHS].internalField();
+    scalar minD = 0.00000000001;
+    //heaviside field calculation
+    forAll(cField,cell){
+        heaviField[cell]= (cs[cell]-cField[cell]) <= minD ? 1 : 0;
+    }
+
+	//heaviside2InternalField(cField, cs.ref());
+    printField(heaviField);
+
 	flag1st=false;
 
     massConservative_ = massConservative;

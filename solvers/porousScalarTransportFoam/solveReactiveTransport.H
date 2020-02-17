@@ -77,6 +77,7 @@
                 }
             }
         }
+        Info << setprecision(15);
         Info<< "Concentration Min(" << speciesName << ") = " << min(C).value() 
             << " Max(" << speciesName << ") = " << max(C.internalField()).value()
             << " mass(" << speciesName << ") = " << fvc::domainIntegrate(R*C*Saturation*eps).value()

@@ -42,6 +42,7 @@ Author
 #include "eventFlux.H"
 #include "EulerD3dt3Scheme.H"
 #include "EulerD2dt2Scheme.H"
+#include "IOmanip.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -66,6 +67,7 @@ int main(int argc, char *argv[])
         #include "setDeltaT.H"
         runTime++;
 
+        Info << setprecision(15);
         Info << "Time = " << runTime.timeName() << nl << endl;
 
         #include "solveReactiveTransport.H"
