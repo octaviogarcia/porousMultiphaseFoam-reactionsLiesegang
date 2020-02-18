@@ -89,7 +89,30 @@
             << " dCmax = " << dCdTmax[speciesi]*runTime.deltaTValue()
             << endl;
         
-        if(speciesi == reactionModel->getInfluencedSpecieHS()){
+
+        auto Deff = composition.Deff(speciesi)[5].xx();
+
+        if(Deff != 0){
+            const auto& Cref = composition.Y(speciesi);
+            double referencia[] = {10,10,10};
+            const auto& minCref = referencia[speciesi];
+
+            auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
+            Info << endl << "maxmagGrad specie: " << speciesi << " value: " << maxmagGradC << endl;
+
+            auto h = Cref.mesh().delta().ref()[5].x();
+            // add k constant code
+            
+            Info << endl << "h specie: " << speciesi << " value: " << h << endl;
+            Info << endl << "Deff specie: " << speciesi << " value: " << Deff << endl;
+
+            auto fraction = minCref/maxmagGradC;
+            auto tauD = (fraction * (h/Deff));
+
+            Info << "tauD specie: " << speciesi << " value: " << tauD << endl;
+        }
+
+        /*if(speciesi == reactionModel->getInfluencedSpecieHS()){
             updateDeltaT=true;
             
             //-v
@@ -137,7 +160,7 @@
                     newDeltaT = minDeltaT;
                 }
             }
-            else if(initialIncrease /*cMax > cs+0.1*/){   //increments before first bands (before completing first increase) 
+            else if(initialIncrease ){   //increments before first bands (before completing first increase) 
                     newDeltaT = newDeltaT*1.2;
             }
 
@@ -146,7 +169,7 @@
             Info<< "-> New deltaT = " <<  runTime.deltaTValue() << endl;
             
             //-^
-        }
+        }*/
     }
 
 }

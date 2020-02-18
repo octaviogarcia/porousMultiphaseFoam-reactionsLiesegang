@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
     bool updateDeltaT;
-    bool initialIncrease=true;
+    //bool initialIncrease=true;
 
     while (runTime.run())
     {
