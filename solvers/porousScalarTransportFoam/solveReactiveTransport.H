@@ -94,23 +94,57 @@
 
         if(Deff != 0){
             const auto& Cref = composition.Y(speciesi);
-            double referencia[] = {10,10,10};
-            const auto& minCref = referencia[speciesi];
-
+            const auto& maxCref = gMax(Cref.internalField());
             auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
+            Info << endl << "maxCref specie: " << speciesi << " value: " << maxCref << endl;
             Info << endl << "maxmagGrad specie: " << speciesi << " value: " << maxmagGradC << endl;
 
             auto h = Cref.mesh().delta().ref()[5].x();
-            // add k constant code
+            auto k = 1.0;
             
             Info << endl << "h specie: " << speciesi << " value: " << h << endl;
             Info << endl << "Deff specie: " << speciesi << " value: " << Deff << endl;
 
-            auto fraction = minCref/maxmagGradC;
-            auto tauD = (fraction * (h/Deff));
+            auto fraction = maxCref/maxmagGradC;
+            auto tauD = k*(fraction * (h/Deff));
 
             Info << "tauD specie: " << speciesi << " value: " << tauD << endl;
         }
+        else{
+
+            scalar newDeltaT = runTime.deltaTValue();
+            const auto& Dact = composition.Y(speciesi);
+            const auto& Dprev = composition.Y(speciesi).oldTime();
+
+            auto variation = Dact-Dprev;        // maybe wrong
+
+            if(variation>0.1){      //change value 0.1, its the maximum variation posible for D specie
+                
+                forAll(composition.Y(), speciesj){      // Reset fields to previous value.
+                    composition.Y(speciesj) = composition.Y(speciesj).oldTime();
+                }
+
+                runTime.setTime(runTime.timeOutputValue()-runTime.deltaTValue(),runTime.timeIndex());
+                
+                newDeltaT *= 0.8;       // calculate new delta T to achieve less variation, MAYBE WRONG
+
+                runTime.setTime(runTime.timeOutputValue()+runTime.deltaTValue(),runTime.timeIndex());
+                
+                updateDeltaT=true;      // redo last timestep
+            }
+            else{      // variation is acceptable
+
+                if (tauD > (1.2 * newDeltaT)){
+                    newDeltaT *= 1.2;
+                }else if (tauD < 1.2 * newDeltaT){
+                    newDeltaT = tauD;                       // minimun needed ? it will decrease forever otherwise
+                }
+
+                updateDeltaT=false;
+            }
+            runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
+        }
+
 
         /*if(speciesi == reactionModel->getInfluencedSpecieHS()){
             updateDeltaT=true;

@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
-    bool updateDeltaT;
+    bool updateDeltaT = false;
     //bool initialIncrease=true;
 
     while (runTime.run())
@@ -67,14 +67,18 @@ int main(int argc, char *argv[])
         if (outputEventIsPresent) outputEvent.updateIndex(runTime.timeOutputValue());
         forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateIndex(runTime.timeOutputValue());
 
-        updateDeltaT=false;
+        updateDeltaT = false
 
         #include "setDeltaT.H"
         runTime++;
 
-        Info << "Time = " << runTime.timeName() << nl << endl;
+        do{
 
-        #include "solveReactiveTransport.H"
+            Info << "Time = " << runTime.timeName() << nl << endl;
+            #include "solveReactiveTransport.H"
+
+        } while (updateDeltaT=true);
+
         #include "CmassBalance.H"
 
         #include "eventWrite.H"

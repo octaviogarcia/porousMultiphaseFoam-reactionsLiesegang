@@ -347,6 +347,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		<< "InfluencedSpecieK1,K2 valores distintos."
 		<< abort(FatalError);
 	}
+    
 	volScalarField cs( // Field with c* amount for each cell
 		IOobject(
 			word("cs"),
