@@ -116,7 +116,7 @@
             const auto& Dact = composition.Y(speciesi);
             const auto& Dprev = composition.Y(speciesi).oldTime();
 
-            auto variation = Dact-Dprev;        // maybe wrong
+            auto variation = max(Dact-Dprev).value();        // maybe wrong
 
             if(variation>0.1){      //change value 0.1, its the maximum variation posible for D specie
                 
