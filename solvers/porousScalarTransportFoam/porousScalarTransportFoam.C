@@ -57,7 +57,7 @@ int main(int argc, char *argv[])
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
-    bool updateDeltaT = false;
+    bool redoTimeStep = false;
     //bool initialIncrease=true;
 
     while (runTime.run())
@@ -67,17 +67,22 @@ int main(int argc, char *argv[])
         if (outputEventIsPresent) outputEvent.updateIndex(runTime.timeOutputValue());
         forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateIndex(runTime.timeOutputValue());
 
-        updateDeltaT = false
+        redoTimeStep = false;
 
         #include "setDeltaT.H"
         runTime++;
 
         do{
+            if(redoTimeStep){
+                Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+                << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+                << nl << endl;
+            }
 
             Info << "Time = " << runTime.timeName() << nl << endl;
             #include "solveReactiveTransport.H"
 
-        } while (updateDeltaT=true);
+        } while (redoTimeStep);
 
         #include "CmassBalance.H"
 

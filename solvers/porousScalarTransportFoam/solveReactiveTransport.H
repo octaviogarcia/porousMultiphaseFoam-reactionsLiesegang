@@ -50,6 +50,8 @@
 
     reactionModel->postTransport();
 
+    scalar tauD=VGREAT;
+
     forAll(composition.Y(), speciesi)
     {
         const auto& speciesName = composition.species()[speciesi];
@@ -94,21 +96,23 @@
 
         if(Deff != 0){
             const auto& Cref = composition.Y(speciesi);
-            const auto& maxCref = gMax(Cref.internalField());
+            //const auto& maxCref = gMax(Cref.internalField());
+            double referenceVal[] = {50.0, 10.0, 10.0};
+            const auto& maxCref = referenceVal[speciesi];
             auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
             Info << endl << "maxCref specie: " << speciesi << " value: " << maxCref << endl;
             Info << endl << "maxmagGrad specie: " << speciesi << " value: " << maxmagGradC << endl;
 
             auto h = Cref.mesh().delta().ref()[5].x();
-            auto k = 1.0;
+            auto k = 0.05;
             
-            Info << endl << "h specie: " << speciesi << " value: " << h << endl;
-            Info << endl << "Deff specie: " << speciesi << " value: " << Deff << endl;
+            //Info << endl << "h specie: " << speciesi << " value: " << h << endl;
+            //Info << endl << "Deff specie: " << speciesi << " value: " << Deff << endl;
 
             auto fraction = maxCref/maxmagGradC;
-            auto tauD = k*(fraction * (h/Deff));
-
-            Info << "tauD specie: " << speciesi << " value: " << tauD << endl;
+            auto tempTauD = k*(fraction * (h/Deff));
+            Info << "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+            tauD = tempTauD < tauD ? tempTauD : tauD;
         }
         else{
 
@@ -116,94 +120,40 @@
             const auto& Dact = composition.Y(speciesi);
             const auto& Dprev = composition.Y(speciesi).oldTime();
 
-            auto variation = max(Dact-Dprev).value();        // maybe wrong
+            auto variation = max(Dact-Dprev).value();
 
-            if(variation>0.1){      //change value 0.1, its the maximum variation posible for D specie
-                
+            Info << "tauD selected: " << tauD << endl;
+            Info << "D Variation: " << variation << endl;
+            if(variation>0.05){      //change value 0.1, its the maximum variation posible for D specie
+                Info<< "Max D variation exceded ..."<< endl;
                 forAll(composition.Y(), speciesj){      // Reset fields to previous value.
                     composition.Y(speciesj) = composition.Y(speciesj).oldTime();
                 }
 
-                runTime.setTime(runTime.timeOutputValue()-runTime.deltaTValue(),runTime.timeIndex());
+                runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
                 
                 newDeltaT *= 0.8;       // calculate new delta T to achieve less variation, MAYBE WRONG
+                Info<< "deltaT reduced 20% ..."<< endl;
 
-                runTime.setTime(runTime.timeOutputValue()+runTime.deltaTValue(),runTime.timeIndex());
+                runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
                 
-                updateDeltaT=true;      // redo last timestep
+                redoTimeStep=true;      // redo last timestep
             }
             else{      // variation is acceptable
 
                 if (tauD > (1.2 * newDeltaT)){
                     newDeltaT *= 1.2;
+                    Info<< "deltaT increased 20% ..."<< endl;
                 }else if (tauD < 1.2 * newDeltaT){
-                    newDeltaT = tauD;                       // minimun needed ? it will decrease forever otherwise
+                    newDeltaT = tauD;
+                    Info<< "using tauD ..."<< endl;
                 }
 
-                updateDeltaT=false;
+                redoTimeStep=false;
             }
             runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
+            Info<< "deltaT = " <<  runTime.deltaTValue() << endl << endl;
         }
-
-
-        /*if(speciesi == reactionModel->getInfluencedSpecieHS()){
-            updateDeltaT=true;
-            
-            //-v
-            scalar redCoef = reactionModel->getRedCoef();
-            scalar cs = reactionModel->getCsValue();
-            scalar cMax = max(C.internalField()).value();
-            scalar newDeltaT = runTime.deltaTValue();
-
-            if (cMax >9.0)
-            {
-                initialIncrease=false;
-            }
-
-            if(!initialIncrease && cMax < cs-0.1 ){
-                Info<< "-> Computing new deltaT according max concentration..." << endl;
-                scalar cMaxPrev = reactionModel->getPrevMaxC();
-
-                scalar difference = cs-cMax;
-                Info<< "-> cmaxprev: " << cMaxPrev << endl;
-                Info<< "-> cs-cmax: " << difference << endl;
-                if (difference<0.0){
-                    difference = difference * -1.0;
-                }
-
-                dimensionedScalar redPercentage = Foam::exp(dimensionedScalar("",dimless,(-(difference*redCoef))));
-                
-                Info<< "-> redPercentage: " << redPercentage.value() << endl;
-
-                if(difference > 0.05){  //while cmax < cs-0.05
-                    if(cMax-cMaxPrev>0 && cMax > cs-0.2){   // c is increasing and close to saturation
-                        newDeltaT = newDeltaT*(1.0-redPercentage.value());
-                    }
-                    else if(cMax-cMaxPrev>0 && cMax < cs-0.5){  //c is increasing and far from saturation
-                        newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
-                    }
-                    else if(cMax-cMaxPrev<0 && cMax > cs-0.2){  //c is decreasing and close to saturation
-                        newDeltaT = newDeltaT;
-                    }
-                    else if(cMax-cMaxPrev<0 && cMax < cs-0.5){  //c is decreasing and far from saturation
-                        newDeltaT = newDeltaT+newDeltaT*(redPercentage.value());
-                    }
-                    newDeltaT = max(newDeltaT, minDeltaT);
-                }
-                else{       //when difference between cs and cMax is already too small
-                    newDeltaT = minDeltaT;
-                }
-            }
-            else if(initialIncrease ){   //increments before first bands (before completing first increase) 
-                    newDeltaT = newDeltaT*1.2;
-            }
-
-            Info<< "-> Previous deltaT = " <<  runTime.deltaTValue() << endl;
-            runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
-            Info<< "-> New deltaT = " <<  runTime.deltaTValue() << endl;
-            
-            //-^
-        }*/
     }
 
 }
