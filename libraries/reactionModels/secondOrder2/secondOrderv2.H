@@ -84,6 +84,10 @@ public:
 
     double getCsValue() override;
 
+    void printBinary() override;
+
+    void printHF() override;
+
     int getInfluencedSpecieHS() override;
 
     void setPrevMaxC( scalar pmc) override;

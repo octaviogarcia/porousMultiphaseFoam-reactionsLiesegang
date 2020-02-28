@@ -109,6 +109,10 @@ public:
 
     virtual double getCsValue()=0;
 
+    virtual void printBinary()=0;
+
+    virtual void printHF()=0;
+
     virtual int getInfluencedSpecieHS()=0;
 
     virtual void setPrevMaxC(scalar pcm)=0;

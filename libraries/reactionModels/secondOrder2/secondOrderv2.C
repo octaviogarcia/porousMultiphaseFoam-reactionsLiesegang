@@ -79,7 +79,7 @@ template<class Type, template<class> class PatchField, class GeoMesh>
 void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 	const auto& field = dfield.internalField();
     forAll(field, index){        
-		if(index % 10 == 0){
+		if(index % 100 == 0){
 	        Foam::Info << Foam::endl;
 		}
 		Foam::Info<< " " << field[index];
@@ -338,7 +338,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         return;
     }*/
 	
-    Info << "rho value:" << rho.value() << endl << endl;
+    Info << "rho value:" << rho.value() << endl;
 
 	// Para nuestro caso, influenced species K1 y K2 son el lado derecho
 	// de las reacciones C = D osea D.
@@ -347,44 +347,47 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		<< "InfluencedSpecieK1,K2 valores distintos."
 		<< abort(FatalError);
 	}
-    
-	volScalarField cs( // Field with c* amount for each cell
-		IOobject(
-			word("cs"),
-			Y_[0].mesh().time().timeName(), 
-			Y_[0].mesh(),
-			IOobject::NO_READ, 
-			IOobject::NO_WRITE
-		),
-		Y_[0].mesh(), 
-		cs_scalar
-	);
-	
-	binary.ref().field() = 1;
-	const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
-	//@hack;
-	// [cells] = RADIUS [m] / DELTAX [m/cell]
-	const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
-	Info << "Cell check radius " << r << endl;
-	//if r = 1.25
-	const int int_r = round(r); // 2
-	
-	forAll(fieldTargetMass, cell){
-		bool leftSaturated = true;
-		bool rightSaturated = true;
-		for(int i = 1;i<=int_r;i++){
-			int left = max(cell - i,0);
-			int right = min(cell + i, fieldTargetMass.size() - 1);
-			leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
-			rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
-		}
-		cs[cell] *= !leftSaturated  * !rightSaturated;
-		binary[cell] = !(fieldTargetMass[cell] >= rho.value());
-	}
-	
-	auto cField = Y_[influencedSpecieHS].internalField();
-	heaviside2InternalField(cField, cs.ref());
-	
+
+    if (!massConservative){
+        
+        volScalarField cs( // Field with c* amount for each cell
+            IOobject(
+                word("cs"),
+                Y_[0].mesh().time().timeName(), 
+                Y_[0].mesh(),
+                IOobject::NO_READ, 
+                IOobject::NO_WRITE
+            ),
+            Y_[0].mesh(), 
+            cs_scalar
+        );
+
+        binary.ref().field() = 1;
+        const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
+        //@hack;
+        // [cells] = RADIUS [m] / DELTAX [m/cell]
+        const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
+        Info << "Cell check radius " << r << endl;
+        //if r = 1.25
+        const int int_r = round(r); // 2
+
+        forAll(fieldTargetMass, cell){
+            bool leftSaturated = true;
+            bool rightSaturated = true;
+            for(int i = 1;i<=int_r;i++){
+                int left = max(cell - i,0);
+                int right = min(cell + i, fieldTargetMass.size() - 1);
+                leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
+                rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
+            }
+            cs[cell] *= !leftSaturated  * !rightSaturated;
+            binary[cell] = !(fieldTargetMass[cell] >= rho.value());
+        }
+
+        auto cField = Y_[influencedSpecieHS].internalField();
+        heaviside2InternalField(cField, cs.ref());
+
+    }
     //printField(heaviField);
 
 	flag1st=false;
@@ -660,6 +663,16 @@ double Foam::reactionModels::secondOrderv2::getRedCoef()
 double Foam::reactionModels::secondOrderv2::getCsValue()
 {
     return cs_scalar.value();
+}
+
+void Foam::reactionModels::secondOrderv2::printBinary()
+{
+    printField(binary);
+}
+
+void Foam::reactionModels::secondOrderv2::printHF()
+{
+    printField(heaviField);
 }
 
 int Foam::reactionModels::secondOrderv2::getInfluencedSpecieHS()

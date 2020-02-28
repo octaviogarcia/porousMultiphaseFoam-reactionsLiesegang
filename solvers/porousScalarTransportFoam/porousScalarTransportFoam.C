@@ -42,6 +42,7 @@ Author
 #include "eventFlux.H"
 #include "EulerD3dt3Scheme.H"
 #include "EulerD2dt2Scheme.H"
+#include "IOmanip.H"
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -58,10 +59,14 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
     bool redoTimeStep = false;
-    //bool initialIncrease=true;
-
+    int breakLoop = 0;
+  
     while (runTime.run())
     {
+
+        scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.1);
+        scalar maxIterations = runTime.controlDict().lookupOrDefault<scalar>("maxIterations",7);
+
         #include "CourantNo.H"
         forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateIndex(runTime.timeOutputValue());
         if (outputEventIsPresent) outputEvent.updateIndex(runTime.timeOutputValue());

@@ -34,7 +34,8 @@ Description
 
 \*---------------------------------------------------------------------------*/
 
-if (adjustTimeStep)
+//if (adjustTimeStep)
+if(1==0)
 {
     scalar dtForC = VGREAT;
     if (timeScheme == "backward")

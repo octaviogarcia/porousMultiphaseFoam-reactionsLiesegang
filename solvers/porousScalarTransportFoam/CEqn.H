@@ -23,7 +23,23 @@
 
         C.storePrevIter();
 
-        CEqn.solve("C");
+        const solverPerformance& sp = CEqn.solve("C");
+
+        actualOkStop = actualOkStop && (sp.nIterations()<1 ? true : false);
+        
+        /*if(C.internalField() == C.prevIter()){
+            Info << "No changes done to field!" << endl;
+        }*/
+
+        /*    const auto& field = C.internalField();
+            forAll(field, index){        
+		        if(index % 10 == 0){
+	                Foam::Info << Foam::endl;
+		        }
+		        Foam::Info<< " " << field[index];
+	        }
+	        Foam::Info << Foam::endl;*/
+        
 
         dimensionedScalar vSmall("vSmall", C.dimensions(), VSMALL);
 		

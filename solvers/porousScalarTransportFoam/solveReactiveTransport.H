@@ -5,30 +5,41 @@
     composition.correct(U, Saturation, eps);
 
     scalar Cresidual;
+    //bool pastOkStop = false;
+    bool actualOkStop = true;
+    //int contador = 0;
+
     if(reactionModel->needsSubcycling())
     {
-        reactionModel->setPrevMaxC(
-                            max(
-                                (composition.Y( reactionModel->getInfluencedSpecieHS() )).internalField())
-                                .value()
-                            );
-
         scalar iterTransport = 0;
         do
         {
             ++iterTransport;
+            //++contador;
 
+            //pastOkStop = actualOkStop;
+            actualOkStop = true;
             reactionModel->correct(false);
             #include "CEqn.H"
             
-            Info<< "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
+            Info << setprecision(15);
+            Info << "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
+            
+            if(actualOkStop){
+                Info<< "No more iterations needed..." << endl;
+            }
 
-        } while(iterTransport < 7); 
-		//while(Cresidual > reactionTol);
-		
+            //reactionModel->printBinary();
+
+            //reactionModel->printHF();
+
+        } while(!(/*pastOkStop &&*/ actualOkStop) && iterTransport < maxIterations);
+		//while(Cresidual > reactionTol); 
+
 
         if(reactionMassConservative && !reactionModel->alwaysMassConservative())
         {
+            Info << " Mass conservation:" << endl;
             reactionModel->correct(true);
             #include "CEqn.H"
 
@@ -91,68 +102,87 @@
             << " dCmax = " << dCdTmax[speciesi]*runTime.deltaTValue()
             << endl;
         
+        if(adjustTimeStep){
+            auto Deff = composition.Deff(speciesi)[5].xx();
 
-        auto Deff = composition.Deff(speciesi)[5].xx();
+            if(Deff != 0.0){
+                const auto& Cref = composition.Y(speciesi);
+                //const auto& maxCref = gMax(Cref.internalField());
+                double referenceVal[] = {500.0, 10.0, 10.0};
+                const auto& maxCref = referenceVal[speciesi];
+                auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
+                //auto maxmagGradC2 = gMax(mag(fvc::grad(Cref)));
+                Info << endl << "maxCref specie: " << speciesi << " value: " << maxCref << endl;
+                Info << "maxmagGradC specie: " << speciesi << " value: " << maxmagGradC << endl;
+                //Info << "maxmagGradC with gMax specie: " << speciesi << " value: " << maxmagGradC2 << endl;
 
-        if(Deff != 0){
-            const auto& Cref = composition.Y(speciesi);
-            //const auto& maxCref = gMax(Cref.internalField());
-            double referenceVal[] = {50.0, 10.0, 10.0};
-            const auto& maxCref = referenceVal[speciesi];
-            auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
-            Info << endl << "maxCref specie: " << speciesi << " value: " << maxCref << endl;
-            Info << endl << "maxmagGrad specie: " << speciesi << " value: " << maxmagGradC << endl;
+                auto h = Cref.mesh().delta().ref()[5].x();
+                auto k = 0.005;
+                auto tempTauD = 0.0;
 
-            auto h = Cref.mesh().delta().ref()[5].x();
-            auto k = 0.05;
-            
-            //Info << endl << "h specie: " << speciesi << " value: " << h << endl;
-            //Info << endl << "Deff specie: " << speciesi << " value: " << Deff << endl;
-
-            auto fraction = maxCref/maxmagGradC;
-            auto tempTauD = k*(fraction * (h/Deff));
-            Info << "tauD specie: " << speciesi << " value: " << tempTauD << endl;
-            tauD = tempTauD < tauD ? tempTauD : tauD;
-        }
-        else{
-
-            scalar newDeltaT = runTime.deltaTValue();
-            const auto& Dact = composition.Y(speciesi);
-            const auto& Dprev = composition.Y(speciesi).oldTime();
-
-            auto variation = max(Dact-Dprev).value();
-
-            Info << "tauD selected: " << tauD << endl;
-            Info << "D Variation: " << variation << endl;
-            if(variation>0.05){      //change value 0.1, its the maximum variation posible for D specie
-                Info<< "Max D variation exceded ..."<< endl;
-                forAll(composition.Y(), speciesj){      // Reset fields to previous value.
-                    composition.Y(speciesj) = composition.Y(speciesj).oldTime();
+                if(maxmagGradC>0.0){
+                    auto fraction = maxCref/maxmagGradC;
+                    tempTauD = k*(fraction * (h/Deff));
+                }else{
+                    tempTauD = VGREAT;
                 }
-
-                runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
-                
-                newDeltaT *= 0.8;       // calculate new delta T to achieve less variation, MAYBE WRONG
-                Info<< "deltaT reduced 20% ..."<< endl;
-
-                runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
-                
-                redoTimeStep=true;      // redo last timestep
+                Info << "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+                tauD = tempTauD < tauD ? tempTauD : tauD;
             }
-            else{      // variation is acceptable
+            else{
 
-                if (tauD > (1.2 * newDeltaT)){
-                    newDeltaT *= 1.2;
-                    Info<< "deltaT increased 20% ..."<< endl;
-                }else if (tauD < 1.2 * newDeltaT){
-                    newDeltaT = tauD;
-                    Info<< "using tauD ..."<< endl;
+                scalar newDeltaT = runTime.deltaTValue();
+                const auto& Dact = composition.Y(speciesi);
+                const auto& Dprev = composition.Y(speciesi).oldTime();
+
+                auto variation = max(Dact-Dprev).value();
+                //auto variation2 = max((Dact-Dprev).internalField()).value();
+                //auto variation3 = gMax(Dact-Dprev);
+
+                Info << endl << "tauD selected: " << tauD << endl;
+
+                Info << "D Variation: " << variation << endl;
+                //Info << "D Variation w/intF: " << variation2 << endl;
+                //Info << "D Variation w/gMax: " << variation3 << endl;
+
+                if(variation > maxDCVariation){      //change value 0.1, its the maximum variation posible for D specie
+                    Info<< "Max D variation exceded ..."<< endl;
+                    breakLoop=100;      //amount of timesteps taken with constant deltaT to avoid loop, can be generalized
+
+                    forAll(composition.Y(), speciesj){      // Reset fields to previous value.
+                        composition.Y(speciesj) = composition.Y(speciesj).oldTime();
+                    }
+
+                    runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
+                    
+                    newDeltaT *= 0.8;       // calculate new delta T to achieve less variation, MAYBE WRONG
+                    Info<< "deltaT reduced 20% ..."<< endl << endl;
+
+                    runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
+                    
+                    redoTimeStep=true;      // redo last timestep
                 }
-
-                redoTimeStep=false;
+                else if (!breakLoop || (variation < maxDCVariation*0.75)){  // variation is acceptable to keep increasing deltaT (can be generalized)
+                    if (tauD > (1.2 * newDeltaT)){
+                        newDeltaT *= 1.2;
+                        Info<< "deltaT increased 20% ..."<< endl << endl;
+                    }else if (tauD < 1.2 * newDeltaT){
+                        newDeltaT = tauD;
+                        Info<< "using tauD ..."<< endl << endl;
+                    }
+                    redoTimeStep=false;
+                }
+                else{
+                    breakLoop--;
+                    Info<< "Decreasing loop counter, actual value: " << breakLoop << endl;
+                    if(!breakLoop){
+                        Info<< "Loop broken ... " << endl;
+                    }
+                    redoTimeStep=false;
+                }
+                runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
+                Info<< "deltaT = " <<  runTime.deltaTValue() << endl << endl;
             }
-            runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
-            Info<< "deltaT = " <<  runTime.deltaTValue() << endl << endl;
         }
     }
 
