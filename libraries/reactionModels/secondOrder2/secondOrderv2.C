@@ -334,9 +334,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 
 void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 {
-    /*if(!flag1st){
+    if(!flag1st){
         return;
-    }*/
+    }
 	
     Info << "rho value:" << rho.value() << endl;
 

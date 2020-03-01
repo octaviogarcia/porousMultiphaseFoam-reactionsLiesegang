@@ -33,8 +33,8 @@
 
             //reactionModel->printHF();
 
-        } while(!(/*pastOkStop &&*/ actualOkStop) && iterTransport < maxIterations);
-		//while(Cresidual > reactionTol); 
+        } //while(!(/*pastOkStop &&*/ actualOkStop) && iterTransport < maxIterations);
+		while(Cresidual > reactionTol); 
 
 
         if(reactionMassConservative && !reactionModel->alwaysMassConservative())
