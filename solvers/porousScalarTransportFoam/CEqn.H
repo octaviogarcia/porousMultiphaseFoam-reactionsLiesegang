@@ -27,24 +27,6 @@
 
         actualOkStop = actualOkStop && (sp.nIterations()<1 ? true : false);
         
-
-        /*//if(runTime.value()>246.0){
-            const auto& field = C.internalField();
-            forAll(field, index){        
-		        if(index % 10 == 0){
-	                Foam::Info << Foam::endl;
-		        }
-		        Foam::Info<< " " << field[index];
-	        }
-	        Foam::Info << Foam::endl;
-        //}
-        */
-
-        /*if(C.internalField() == C.prevIter()){
-            Info << "No changes done to field!" << endl;
-        }*/
-
-
         dimensionedScalar vSmall("vSmall", C.dimensions(), VSMALL);
 		
         Cresidual = max(Cresidual, gMax(mag(((C-C.prevIter())/(C.prevIter()+vSmall)))->internalField()));

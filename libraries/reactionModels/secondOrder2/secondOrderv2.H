@@ -80,20 +80,6 @@ public:
 
     void postTransport() override;
 
-    double getRedCoef() override;
-
-    double getCsValue() override;
-
-    void printBinary() override;
-
-    void printHF() override;
-
-    int getInfluencedSpecieHS() override;
-
-    void setPrevMaxC( scalar pmc) override;
-
-    double getPrevMaxC() override;
-
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 

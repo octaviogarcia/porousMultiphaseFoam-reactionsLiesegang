@@ -5,9 +5,7 @@
     composition.correct(U, Saturation, eps);
 
     scalar Cresidual;
-    //bool pastOkStop = false;
     bool actualOkStop = true;
-    //int contador = 0;
 
     if(reactionModel->needsSubcycling())
     {
@@ -15,27 +13,18 @@
         do
         {
             ++iterTransport;
-            //++contador;
 
-            //pastOkStop = actualOkStop;
             actualOkStop = true;
             reactionModel->correct(false);
             #include "CEqn.H"
             
-            Info << setprecision(15);
             Info << "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
             
             if(actualOkStop){
                 Info<< "No more iterations needed..." << endl;
             }
 
-            //reactionModel->printBinary();
-
-            //reactionModel->printHF();
-
-        } //while(!(/*pastOkStop &&*/ actualOkStop) && iterTransport < maxIterations);
-		while(Cresidual > reactionTol); 
-
+        } while(Cresidual > reactionTol); 
 
         if(reactionMassConservative && !reactionModel->alwaysMassConservative())
         {
@@ -107,14 +96,9 @@
 
             if(Deff != 0.0){
                 const auto& Cref = composition.Y(speciesi);
-                //const auto& maxCref = gMax(Cref.internalField());
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
                 auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
-                //auto maxmagGradC2 = gMax(mag(fvc::grad(Cref)));
-                Info << endl << "maxCref specie: " << speciesi << " value: " << maxCref << endl;
-                Info << "maxmagGradC specie: " << speciesi << " value: " << maxmagGradC << endl;
-                //Info << "maxmagGradC with gMax specie: " << speciesi << " value: " << maxmagGradC2 << endl;
 
                 auto h = Cref.mesh().delta().ref()[5].x();
                 auto k = 0.005;
@@ -136,18 +120,13 @@
                 const auto& Dprev = composition.Y(speciesi).oldTime();
 
                 auto variation = max(Dact-Dprev).value();
-                //auto variation2 = max((Dact-Dprev).internalField()).value();
-                //auto variation3 = gMax(Dact-Dprev);
 
                 Info << endl << "tauD selected: " << tauD << endl;
-
                 Info << "D Variation: " << variation << endl;
-                //Info << "D Variation w/intF: " << variation2 << endl;
-                //Info << "D Variation w/gMax: " << variation3 << endl;
 
-                if(variation > maxDCVariation){      //change value 0.1, its the maximum variation posible for D specie
-                    Info<< "Max D variation exceded ..."<< endl;
-                    breakLoop=100;      //amount of timesteps taken with constant deltaT to avoid loop, can be generalized
+                if(variation > maxDCVariation){
+                    Info<< "-> Max D variation exceded ..."<< endl;
+                    breakLoop=100;      //amount of timesteps taken with constant deltaT to avoid a loop where deltaT is increased and decreased continuously, can be generalized
 
                     forAll(composition.Y(), speciesj){      // Reset fields to previous value.
                         composition.Y(speciesj) = composition.Y(speciesj).oldTime();
@@ -155,7 +134,7 @@
 
                     runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
                     
-                    newDeltaT *= 0.8;       // calculate new delta T to achieve less variation, MAYBE WRONG
+                    newDeltaT *= 0.8;       // calculate new delta T to achieve less variation
                     Info<< "deltaT reduced 20% ..."<< endl << endl;
 
                     runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
@@ -174,7 +153,7 @@
                 }
                 else{
                     breakLoop--;
-                    Info<< "Decreasing loop counter, actual value: " << breakLoop << endl;
+                    Info<< "Decreasing loop counter. Actual value: " << breakLoop << endl;
                     if(!breakLoop){
                         Info<< "Loop broken ... " << endl;
                     }

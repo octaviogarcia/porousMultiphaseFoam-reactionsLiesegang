@@ -105,20 +105,6 @@ public:
     // for the current time step.
     virtual void postTransport() = 0;
 
-    virtual double getRedCoef()=0;
-
-    virtual double getCsValue()=0;
-
-    virtual void printBinary()=0;
-
-    virtual void printHF()=0;
-
-    virtual int getInfluencedSpecieHS()=0;
-
-    virtual void setPrevMaxC(scalar pcm)=0;
-
-    virtual double getPrevMaxC()=0;
-
     //- Destructor
     virtual ~reactionModel() = default;
 

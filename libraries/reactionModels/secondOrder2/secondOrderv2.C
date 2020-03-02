@@ -117,8 +117,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             	),
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
     heaviField(binary),
-    rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
-    //cs_scalar("", rho),
+    rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
 	//@HACK ver si hay alguna forma de iniciarlo mejor
 	cradius("",
 		dimensionedScalar(
@@ -129,9 +128,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 	),
 	steepness(4096)
 {
-	// Asi se puede scar la cantidad de celdas, si podemos sacar la longitud del mesh o pasarlo como argumento
-	// Seria mas facil
-    // Info<< "Cells " << Y_[0].mesh().cells().size() << endl;
+
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -340,8 +337,8 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	
     Info << "rho value:" << rho.value() << endl;
 
-	// Para nuestro caso, influenced species K1 y K2 son el lado derecho
-	// de las reacciones C = D osea D.
+	// In our case, influenced species K1 and K2 are the right hand side of 
+	// reactions C = D, i.e. D.
 	if(influencedSpecieK1 != influencedSpecieK2){
 		FatalErrorIn("secondOrderv2.C")
 		<< "InfluencedSpecieK1,K2 valores distintos."
@@ -368,8 +365,8 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         // [cells] = RADIUS [m] / DELTAX [m/cell]
         const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
         Info << "Cell check radius " << r << endl;
-        //if r = 1.25
-        const int int_r = round(r); // 2
+
+        const int int_r = round(r);
 
         forAll(fieldTargetMass, cell){
             bool leftSaturated = true;
@@ -647,47 +644,10 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 {
 	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
-		// Esto es literalmente x > 0? 1 : 0
+		// This is literally x > 0? 1 : 0
         hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
-		// Con un sigmoide no funciona, supongo que tiene que ser muy steep o no funciona
-		// Entonces creo que es mejor dejarlo con un escalon nomas.
-		//hIntfield[cell]=sigmoidAbs(cField[cell]-csField[cell],steepness);
     }
 }
 
-double Foam::reactionModels::secondOrderv2::getRedCoef()
-{
-    return reductionCoef;
-}
-
-double Foam::reactionModels::secondOrderv2::getCsValue()
-{
-    return cs_scalar.value();
-}
-
-void Foam::reactionModels::secondOrderv2::printBinary()
-{
-    printField(binary);
-}
-
-void Foam::reactionModels::secondOrderv2::printHF()
-{
-    printField(heaviField);
-}
-
-int Foam::reactionModels::secondOrderv2::getInfluencedSpecieHS()
-{
-    return influencedSpecieHS;
-}
-
-void Foam::reactionModels::secondOrderv2::setPrevMaxC( scalar pmc)
-{
-    prevMaxC = pmc;    
-}
-
-double Foam::reactionModels::secondOrderv2::getPrevMaxC()
-{
-    return prevMaxC;
-}
 
 // ************************************************************************* //
