@@ -56,6 +56,4 @@ eventTimeTracking true;
 
 variationMax    0.0125;
 
-maxIterations	9;
-
 // ************************************************************************* //
