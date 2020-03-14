@@ -150,7 +150,7 @@ private:
     volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
 
     dimensionedScalar rho;
-	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many cells to look around to check rho.
+	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many METERS to look around to check rho.
 	scalar steepness;
 
     scalar reductionCoef=1.0;

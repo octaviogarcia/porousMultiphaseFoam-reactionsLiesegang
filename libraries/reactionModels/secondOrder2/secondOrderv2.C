@@ -87,14 +87,31 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 	Foam::Info << Foam::endl;
 }
 
+double lerp(double l,double r,double p){
+	return l*(1-p)+r*p;
+}
+
 //No estoy seguro si openfoam maneja floats o doubles
-/*template<typename F>
-F sigmoidAbs(F x,F steepness){
+double sigmoidAbs(double x,double steepness){
 	x*=steepness;
-	const F negOne_to_one = x/(1+abs(x)); //abs() trabaja con enteros nomas 
-	const F zero_to_one = (negOne_to_one + 1)/2.0;
+	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
+	const double zero_to_one = (negOne_to_one + 1)/2.0;
 	return zero_to_one;
-}*/
+}
+double sigmoidAbs_01(double x){
+	x+=0.05;//Corrimiento a la izq para que x = 0 -> 1
+	x*=100;
+	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
+	const double zero_to_one = (negOne_to_one + 1)/2.0;
+	return zero_to_one;
+}
+double sigmoidAbs_00(double x){
+	x-=0.05;//Corrimiento a la der para que x = 0 -> 0
+	x*=100;
+	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
+	const double zero_to_one = (negOne_to_one + 1)/2.0;
+	return zero_to_one;
+}
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -361,29 +378,90 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 
         binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
-        //@hack;
-        // [cells] = RADIUS [m] / DELTAX [m/cell]
-        const double r = (cradius / Y_[0].mesh().delta().ref()[5].x()).value();
-        Info << "Cell check radius " << r << endl;
-
-        const int int_r = round(r);
-
+        
+        const double cell_size = Y_[0].mesh().delta().ref()[5].x();
+        const double meter_radius = cradius.value();
+        const double cell_radius = meter_radius / cell_size;
+        Info << endl 
+        << "Cell Size " << cell_size << endl
+        << "Meters radius (cradius) " <<  meter_radius << endl
+		<< "Cell radius " << cell_radius << endl;
+		
         forAll(fieldTargetMass, cell){
-            bool leftSaturated = true;
-            bool rightSaturated = true;
-            for(int i = 1;i<=int_r;i++){
-                int left = max(cell - i,0);
-                int right = min(cell + i, fieldTargetMass.size() - 1);
-                leftSaturated = leftSaturated && (fieldTargetMass[left] >= rho.value());
-                rightSaturated = rightSaturated && (fieldTargetMass[right] >= rho.value());
+			#define ALG_NO_SIGMOIDE
+			#ifdef ALG_NO_SIGMOIDE
+            binary[cell] = fieldTargetMass[cell] < rho.value();
+			bool lsaturation = true;
+		    bool rsaturation = true;
+			
+            for(double delta = 0.5;delta<=cell_radius;delta+=0.5){
+                const double left = max(cell - delta,0);
+                const double right = min(cell + delta, fieldTargetMass.size() - 1);
+				const double l_flr = fieldTargetMass[floor(left)];
+                const double l_cl = fieldTargetMass[ceil(left)];
+				const double l_val = (l_flr+l_cl)*0.5;	
+				const double r_flr = fieldTargetMass[floor(right)];
+                const double r_cl = fieldTargetMass[ceil(right)];
+				const double r_val = (r_flr+r_cl)*0.5;	
+                lsaturation = lsaturation && (l_val < rho.value());
+                rsaturation = rsaturation && (r_val < rho.value());
             }
-            cs[cell] *= !leftSaturated  * !rightSaturated;
-            binary[cell] = !(fieldTargetMass[cell] >= rho.value());
+			{
+				const double pos = max(cell - cell_radius,0);
+				const double flr = fieldTargetMass[floor(pos)];
+                const double cl = fieldTargetMass[ceil(pos)];
+				const double proportion = pos - floor(pos);
+				const double val = lerp(flr,cl,proportion);
+				lsaturation = lsaturation && (val < rho.value());
+			}
+			{
+				const double pos = max(cell + cell_radius,0);
+				const double flr = fieldTargetMass[floor(pos)];
+                const double cl = fieldTargetMass[ceil(pos)];
+				const double proportion = pos - floor(pos);
+				const double val = lerp(flr,cl,proportion);
+				rsaturation = rsaturation && (val < rho.value());
+			}
+			cs[cell] *= lsaturation*rsaturation;
+			#endif
+			#ifdef ALG_SIGMOIDE
+            binary[cell] = (1 - sigmoidAbs_01(fieldTargetMass[cell] - rho.value()));
+			double lsaturation = 1;
+		    double rsaturation = 1;
+			
+            for(double delta = 0.5;delta<=cell_radius;delta+=0.5){
+                const double left = max(cell - delta,0);
+                const double right = min(cell + delta, fieldTargetMass.size() - 1);
+				const double l_flr = fieldTargetMass[floor(left)];
+                const double l_cl = fieldTargetMass[ceil(left)];
+				const double l_val = (l_flr+l_cl)*0.5;	
+				const double r_flr = fieldTargetMass[floor(right)];
+                const double r_cl = fieldTargetMass[ceil(right)];
+				const double r_val = (r_flr+r_cl)*0.5;	
+                lsaturation *= sigmoidAbs_00(rho.value() - l_val);
+                rsaturation *= sigmoidAbs_00(rho.value() - r_val);
+            }
+			{
+				const double pos = max(cell - cell_radius,0);
+				const double flr = fieldTargetMass[floor(pos)];
+                const double cl = fieldTargetMass[ceil(pos)];
+				const double proportion = pos - floor(pos);
+				const double val = lerp(flr,cl,proportion);
+				lsaturation *= sigmoidAbs_00(rho.value() - val);
+			}
+			{
+				const double pos = max(cell + cell_radius,0);
+				const double flr = fieldTargetMass[floor(pos)];
+                const double cl = fieldTargetMass[ceil(pos)];
+				const double proportion = pos - floor(pos);
+				const double val = lerp(flr,cl,proportion);
+				rsaturation *= sigmoidAbs_00(rho.value() - val);
+			}
+			cs[cell] *= lsaturation*rsaturation;
+			#endif
         }
-
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
-
     }
     //printField(heaviField);
 
