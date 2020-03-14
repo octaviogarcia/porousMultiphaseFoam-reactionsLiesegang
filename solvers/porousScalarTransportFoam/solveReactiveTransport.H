@@ -36,9 +36,7 @@
 
             if(Cresidual > reactionTol)
             {
-                Warning()
-                    << "Final residual after mass conservation correction exceeds tolerance"
-                    << endl;
+                Warning() << "Final residual after mass conservation correction exceeds tolerance" << endl;
             }
         }
     }
@@ -101,12 +99,16 @@
                 auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
 
                 auto h = Cref.mesh().delta().ref()[5].x();
-                auto k = 0.005;
-                auto tempTauD = 0.0;
+                Info << "h value: " << h << endl;
+                auto hsq = pow(h,2);
+                Info << "h squared: " << hsq << endl;
+                auto k = kValueTauD;
+                Info << "k value: " << k << endl;
+                scalar tempTauD = 0.0;
 
                 if(maxmagGradC>0.0){
                     auto fraction = maxCref/maxmagGradC;
-                    tempTauD = k*(fraction * (h/Deff));
+                    tempTauD = k*(fraction * (hsq/Deff));
                 }else{
                     tempTauD = VGREAT;
                 }
