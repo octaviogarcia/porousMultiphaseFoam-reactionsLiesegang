@@ -1,4 +1,24 @@
 {
+    if (determineCellSizes){
+        auto Cr = ref.mesh().C();
+        auto Cfr = ref.mesh().Cf();
+
+        vector iu(1, 0, 0);
+        auto meshSize = ref.mesh().delta().ref().size();
+        for(int i=0; i<=meshSize; i++){
+            if(i==0){
+                cellSizes[i] *= ((Cr[i]) & iu);
+            }
+            else if(i<meshSize){
+                cellSizes[i] *= ((Cfr[i] - Cr[i]) & iu);
+            }else{
+                cellSizes[i] *= ((Cr[i] - Cfr[i-1]) & iu);
+            }
+        }
+        reactionModel->setCellXSizes(cellSizes);
+        determineCellSizes = false;
+    }
+    
     //- update dispersion tensor coefficients and source terms
     forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateValue(runTime);
     forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateValue(runTime);
@@ -93,17 +113,67 @@
             auto Deff = composition.Deff(speciesi)[5].xx();
 
             if(Deff != 0.0){
+
                 const auto& Cref = composition.Y(speciesi);
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
-                auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
 
-                auto h = Cref.mesh().delta().ref()[5].x();
-                Info << "h value: " << h << endl;
-                auto hsq = pow(h,2);
-                Info << "h squared: " << hsq << endl;
+                #define EXPANDING_CELLS       //EXPANDING_CELLS or HOMOGENEOUS_CELLS
+			  
+                #ifdef EXPANDING_CELLS
+
+                auto magGradC = mag(fvc::grad(Cref)).ref();           //cell-wise
+
+                volScalarField vectorTauD(
+                    IOobject(
+                        word("vectorTauD"), Cref.mesh().time().timeName(), Cref.mesh(), IOobject::NO_READ, IOobject::NO_WRITE
+                    ),
+                    Cref.mesh(), 
+                    dimensionedScalar("",dimless,0.)
+                );
+
+
+                //auto h = Cref.mesh().delta().ref();
+                //auto boundary = Cref.mesh().boundary();
+                //auto patchFaceCenterLeft = boundary[word("patch left")].Cf()[0];
+                //auto patchFaceCenterRight = boundary[word("patch right")].Cf()[0];
+
+                Info << setprecision(15);
+
+                //for(int i=0; i<=meshSize; i++){
+                //    Info << "i = " << i << " size = " << cellSizes[i] << endl;
+                //}
+
+                auto hsq = (cellSizes * cellSizes).ref();
                 auto k = kValueTauD;
-                Info << "k value: " << k << endl;
+                scalar tempTauD = 0.0;
+
+                vectorTauD = k*(hsq/Deff);
+                forAll(magGradC, cell){
+                    if(magGradC[cell]>0.0){
+                        vectorTauD[cell] = vectorTauD[cell]*(maxCref/magGradC[cell]);
+                    }else{
+                        vectorTauD[cell] = GREAT;
+                    }
+                }
+                tempTauD = gMin(vectorTauD); 
+                Info<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
+			    
+                #endif
+                #ifdef HOMOGENEOUS_CELLS
+
+                //auto maxmagGradC = max(mag(fvc::grad(Cref))).value();         //returns wrong value....why?
+                auto maxmagGradC = gMax(mag(fvc::grad(Cref)).ref());          // this is correct (if algorithm its not cell-wise)
+
+
+                auto Cr = Cref.mesh().C();
+                auto Cfr = Cref.mesh().Cf();
+                //auto h = Cref.mesh().delta().ref()[5].x();
+                vector iu(1, 0, 0);
+                auto h = ((Cfr[5] - Cr[5]) & iu)*2;
+
+                auto hsq = pow(h,2);        //
+                auto k = kValueTauD;
                 scalar tempTauD = 0.0;
 
                 if(maxmagGradC>0.0){
@@ -112,8 +182,11 @@
                 }else{
                     tempTauD = VGREAT;
                 }
-                Info << "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+                Info<< "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+                #endif
+
                 tauD = tempTauD < tauD ? tempTauD : tauD;
+
             }
             else{
 

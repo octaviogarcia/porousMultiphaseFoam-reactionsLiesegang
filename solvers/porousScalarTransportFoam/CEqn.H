@@ -13,11 +13,11 @@
         fvScalarMatrix CEqn
         (
             eps * R * Saturation * fvm::ddt(C)
-            + fvm::div(phi, C, "div(phi,C)")
+            + fvm::div(phi, C, "div(phi,C)")    //performance
             - fvm::laplacian(eps*Saturation*Deff, C, "laplacian(Deff,C)")
             ==
-            - sourceTerm
-            - eps * R * Saturation * fvm::Sp(lambda,C)
+            - sourceTerm    //performance
+            - eps * R * Saturation * fvm::Sp(lambda,C)    //performance
             + eps * R * Saturation * reactionTerm
         );
 

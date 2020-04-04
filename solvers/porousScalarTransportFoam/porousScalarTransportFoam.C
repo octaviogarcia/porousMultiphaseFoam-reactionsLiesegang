@@ -59,13 +59,22 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
     bool redoTimeStep = false;
+    bool determineCellSizes = true;
     int breakLoop = 0;
+
+    const auto& ref = composition.Y(0);     // (see if this can be put in somewhere else)
+    volScalarField cellSizes(       // h in TauD equation (see if this can be put somewhere else)
+        IOobject(
+            word("cellSizes"), ref.mesh().time().timeName(), ref.mesh(), IOobject::NO_READ, IOobject::NO_WRITE
+            ), ref.mesh(), dimensionedScalar("",dimless,2.0)
+        );
   
     while (runTime.run())
     {
 
         scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.0125);
         scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
+        //scalar expRatio = runTime.controlDict().lookupOrDefault<scalar>("expansionRatio",1.0);
 
         #include "CourantNo.H"
         forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateIndex(runTime.timeOutputValue());
@@ -77,11 +86,14 @@ int main(int argc, char *argv[])
         //#include "setDeltaT.H"      // Not used anymore, new deltaT adjust is done in solveReactiveTransport.H
         runTime++;
 
+
+
         do{
             if(redoTimeStep){
                 Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
                 << "  ClockTime = " << runTime.elapsedClockTime() << " s"
                 << nl << endl;
+                
             }
 
             Info << "Time = " << runTime.timeName() << nl << endl;
@@ -96,6 +108,7 @@ int main(int argc, char *argv[])
         Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
             << "  ClockTime = " << runTime.elapsedClockTime() << " s"
             << nl << endl;
+        
     }
 
     Info<< "End\n" << endl;

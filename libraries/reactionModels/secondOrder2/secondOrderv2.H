@@ -80,6 +80,8 @@ public:
 
     void postTransport() override;
 
+    void setCellXSizes(const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes) override;
+
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -148,6 +150,8 @@ private:
 
     volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+
+    volScalarField cellXSizes;
 
     dimensionedScalar rho;
 	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many METERS to look around to check rho.
