@@ -74,7 +74,6 @@ int main(int argc, char *argv[])
 
         scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.0125);
         scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
-        //scalar expRatio = runTime.controlDict().lookupOrDefault<scalar>("expansionRatio",1.0);
 
         #include "CourantNo.H"
         forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateIndex(runTime.timeOutputValue());
@@ -85,8 +84,6 @@ int main(int argc, char *argv[])
 
         //#include "setDeltaT.H"      // Not used anymore, new deltaT adjust is done in solveReactiveTransport.H
         runTime++;
-
-
 
         do{
             if(redoTimeStep){

@@ -148,17 +148,18 @@ private:
 
     bool flag1st=true;
 
-    volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
-    volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+    volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
+    volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
 
     volScalarField cellXSizes;
 
     dimensionedScalar rho;
-	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many METERS to look around to check rho.
+	dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.
+    dimensionedScalar iradius =dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.);      //Maximum distance possible before needing interpolation.
 	scalar steepness;
 
     scalar reductionCoef=1.0;
-    dimensionedScalar cs_scalar=dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
+    dimensionedScalar cs_scalar =dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
     scalar prevMaxC = 0.0;
     label influencedSpecieHS;
 

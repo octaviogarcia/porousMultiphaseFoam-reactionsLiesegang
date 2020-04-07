@@ -213,6 +213,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 		if(cradius_value.value()!=0){
 			cradius = cradius_value;
 		}
+
+        dimensionedScalar iradius_value = reaction.lookupOrDefault("iradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));     // TODO: this one maybe its better to place in controlDict
+		if(iradius_value.value()!=0.0){
+			iradius = iradius_value;
+		}
 		
 		dimensionedScalar steepness_value = reaction.lookupOrDefault("steepness",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),0.));
 		if(steepness_value.value() != 0){
@@ -381,14 +386,17 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
         
-        const double cell_size = Y_[0].mesh().delta().ref()[5].x();
+        const double cell_size = Y_[0].mesh().delta().ref()[5].x();     //unused
         const double meter_radius = cradius.value();
-        const double cell_radius = meter_radius / cell_size;
+        const double interp_mtrs_radius = iradius.value();
+
+        //const double cell_radius = meter_radius / cell_size;    //unused
+
         Info<< endl 
-        << "Cell Size " << cell_size << endl
+        << "Cell Size " << cell_size << endl        //unused
         << "Meters radius (cradius) " <<  meter_radius << endl
-		<< "Cell radius " << cell_radius << endl; //invalid for expanding cells
-        
+		//<< "Cell radius " << cell_radius << endl;               //unused
+        << "Interp radius " << interp_mtrs_radius << endl; 
 		
         forAll(fieldTargetMass, cell){
 			#define ALG_NO_SIGMOIDE
@@ -414,8 +422,28 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     const double left = max(cell - delta,0);
                 	const double l_flr = fieldTargetMass[floor(left)];
                     const double l_cl = fieldTargetMass[ceil(left)];
-                    const double proportion = left - floor(left);
-				    const double l_val = lerp(l_flr,l_cl,proportion);
+                    
+                    double proportion, l_val = 0.0;
+                    double totalInsideCell = 0.0;
+
+                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
+                    if(interp_mtrs_radius != 0.0){
+                        do{
+                            if(totalInsideCell + interp_mtrs_radius >= cellXSizes[cell-neighbour]/2){
+                                break;
+                            }
+                            else{
+                                proportion = cellXSizes[cell-neighbour]/2 + cellXSizes[cell-neighbour-1]/2 - interp_mtrs_radius;
+                                l_val = lerp(l_flr,l_cl,proportion);
+                                lsaturation = lsaturation && (l_val < rho.value());
+                                totalInsideCell += interp_mtrs_radius;
+                            }
+                        }while (true);
+                    }
+                    ////-^
+
+                    proportion = left - floor(left);
+				    l_val = lerp(l_flr,l_cl,proportion);
                     lsaturation = lsaturation && (l_val < rho.value());
 
                     if(dCovered_l+cellXSizes[leftmostCell+1]/2 > meter_radius
@@ -440,8 +468,28 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     const double right = min(cell + delta, fieldTargetMass.size() - 1);
                     const double r_flr = fieldTargetMass[floor(right)];
                     const double r_cl = fieldTargetMass[ceil(right)];
-                    const double proportion = right - floor(right);
-				    const double r_val = lerp(r_flr,r_cl,proportion);
+
+                    double proportion, r_val = 0.0;
+                    double totalInsideCell = 0.0;
+
+                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
+                    if(interp_mtrs_radius != 0.0){
+                        do{
+                            if(totalInsideCell + interp_mtrs_radius >= cellXSizes[cell+neighbour]/2){
+                                break;
+                            }
+                            else{
+                                proportion = totalInsideCell;
+                                r_val = lerp(r_flr,r_cl,proportion);
+                                rsaturation = rsaturation && (r_val < rho.value());
+                                totalInsideCell += interp_mtrs_radius;
+                            }
+                        }while (true);
+                    }
+                    ////-^
+                    
+                    proportion = right - floor(right);
+                    r_val = lerp(r_flr,r_cl,proportion);
                     rsaturation = rsaturation && (r_val < rho.value());
                     
                     if(dCovered_r+cellXSizes[rightmostCell-1]/2 > meter_radius
@@ -470,42 +518,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 			
             #endif
 
-			#ifdef ALG_SIGMOIDE     //TODO: doesn't work with expanding cells yet
-
-            binary[cell] = (1 - sigmoidAbs_01(fieldTargetMass[cell] - rho.value()));
-			double lsaturation = 1;
-		    double rsaturation = 1;
-			
-            for(double delta = 0.5;delta<=cell_radius;delta+=0.5){
-                const double left = max(cell - delta,0);
-                const double right = min(cell + delta, fieldTargetMass.size() - 1);
-				const double l_flr = fieldTargetMass[floor(left)];
-                const double l_cl = fieldTargetMass[ceil(left)];
-				const double l_val = (l_flr+l_cl)*0.5;	
-				const double r_flr = fieldTargetMass[floor(right)];
-                const double r_cl = fieldTargetMass[ceil(right)];
-				const double r_val = (r_flr+r_cl)*0.5;	
-                lsaturation *= sigmoidAbs_00(rho.value() - l_val);
-                rsaturation *= sigmoidAbs_00(rho.value() - r_val);
-            }
-			{
-				const double pos = max(cell - cell_radius,0);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				lsaturation *= sigmoidAbs_00(rho.value() - val);
-			}
-			{
-                const double pos = min(cell + cell_radius,fieldTargetMass.size() - 1);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				rsaturation *= sigmoidAbs_00(rho.value() - val);
-			}
-			cs[cell] *= lsaturation*rsaturation;
-			#endif
         }
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
