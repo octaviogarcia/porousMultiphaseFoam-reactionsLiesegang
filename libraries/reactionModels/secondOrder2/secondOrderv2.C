@@ -82,7 +82,7 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 		if(index % 100 == 0){
 	        Foam::Info << Foam::endl;
 		}
-		Foam::Info<< " " << field[index];
+		Foam::Info << " " << field[index];
 	}
 	Foam::Info << Foam::endl;
 }
@@ -90,32 +90,10 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 double lerp(double l,double r,double p){
 	return l*(1-p)+r*p;
 }
-double sigmoidAbs(double x,double steepness){
-	x*=steepness;
-	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
-	const double zero_to_one = (negOne_to_one + 1)/2.0;
-	return zero_to_one;
-}
-double sigmoidAbs_01(double x){
-	x+=0.05;//Corrimiento a la izq para que x = 0 -> 1
-	x*=100;
-	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
-	const double zero_to_one = (negOne_to_one + 1)/2.0;
-	return zero_to_one;
-}
-double sigmoidAbs_00(double x){
-	x-=0.05;//Corrimiento a la der para que x = 0 -> 0
-	x*=100;
-	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
-	const double zero_to_one = (negOne_to_one + 1)/2.0;
-	return zero_to_one;
-}
 
 namespace Foam{
-	double sampleFieldLin(double x,const List<double>& ifield){
-		const int cells = ifield.size() - 1;
-		const double pos = min(max(x,0),1) * cells;//clampeo el x
-		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+	double sampleFieldLinAbs(double cell,const List<double>& ifield){
+		const double pos = min(max(cell,0),ifield.size() - 1);//clampeo el x
 		const double pos_flr = floor(pos);
 		const double pos_cl = ceil(pos);
 		const double mass_flr = ifield[pos_flr];
@@ -123,40 +101,15 @@ namespace Foam{
 		const double proportion = pos - pos_flr;
 		return lerp(mass_flr,mass_cl,proportion);
 	}
-	double sampleFieldNN(double x,const List<double>& ifield){//Nearest Neighbor
-		const int cells = ifield.size() - 1;
-		const double pos = min(max(x,0),1) * cells;//clampeo el x
-		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+	double sampleFieldNNAbs(double cell,const List<double>& ifield){
+		const double pos = min(max(cell,0),ifield.size() - 1);//clampeo el x
 		const double pos_flr = floor(pos);
 		const double pos_cl = ceil(pos);
 		const double mass_flr = ifield[pos_flr];
 		const double mass_cl = ifield[pos_cl];
 		const double distance_flr = pos - pos_flr;
 		const double distance_cl = pos_cl - pos;
-		//Manejar igual como promedio?
 		const double mass = (distance_flr <= distance_cl)*mass_flr + (distance_flr > distance_cl)*mass_cl;
-		return mass;
-	}
-	double sampleFieldSmallest(double x,const List<double>& ifield){
-		const int cells = ifield.size() - 1;
-		const double pos = min(max(x,0),1) * cells;//clampeo el x
-		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
-		const double pos_flr = floor(pos);
-		const double pos_cl = ceil(pos);
-		const double mass_flr = ifield[pos_flr];
-		const double mass_cl = ifield[pos_cl];
-		const double mass = (mass_flr <= mass_cl)*mass_flr + (mass_flr > mass_cl)*mass_cl;
-		return mass;
-	}
-	double sampleFieldBiggest(double x,const List<double>& ifield){
-		const int cells = ifield.size() - 1;
-		const double pos = min(max(x,0),1) * cells;//clampeo el x
-		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
-		const double pos_flr = floor(pos);
-		const double pos_cl = ceil(pos);
-		const double mass_flr = ifield[pos_flr];
-		const double mass_cl = ifield[pos_cl];
-		const double mass = (mass_flr >= mass_cl)*mass_flr + (mass_flr < mass_cl)*mass_cl;
 		return mass;
 	}
 }
@@ -181,16 +134,8 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             	),
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
     heaviField(binary),
+    cellXSizes(binary),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
-	//@HACK ver si hay alguna forma de iniciarlo mejor
-	cradius("",
-		dimensionedScalar(
-			"",
-			dimensionSet(0,1,0,0,0,0,0),
-			Y_[0].mesh().delta().ref()[5].x()
-		)
-	),
-	steepness(4096),
 	m_per_sample(0.0001),//@HACK leer de un archivo
 	cs_sample(0.08/m_per_sample,0)//@HACK leer del blockMeshDict
 {
@@ -226,6 +171,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         Info<< "Reaction " << reactionName << endl
             << "{" << endl
             << "    " << reaction.lookupType<string>("reaction") << endl;
+        
 
         List<specieCoeffs> lhs;
         List<specieCoeffs> rhs;
@@ -256,24 +202,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			rho = rho_value;
         }
 		
-		dimensionedScalar cradius_value = reaction.lookupOrDefault("cradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));
-		if(cradius_value.value()!=0){
-			cradius = cradius_value;
-		}
-		
-		dimensionedScalar steepness_value = reaction.lookupOrDefault("steepness",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),0.));
-		if(steepness_value.value() != 0){
-			steepness = steepness_value.value();
-		}
-
         dimensionedScalar redCoef_value = reaction.lookupOrDefault("redCoef",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),1));
 		if(redCoef_value.value() != 1){
 			reductionCoef = redCoef_value.value();
 		}
 
         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
-		Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
-        Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
         Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
@@ -401,7 +335,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         return;
     }
 	
-    Info << "rho value:" << rho.value() << endl;
+    Info<< "rho value:" << rho.value() << endl;
 
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
@@ -424,16 +358,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
             cs_scalar
         );
 
-        binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
-        
-        /*const double cell_size = Y_[0].mesh().delta().ref()[5].x();
-        const double meter_radius = cradius.value();
-        const double cell_radius = meter_radius / cell_size;
-        Info << endl 
-        << "Cell Size " << cell_size << endl
-        << "Meters radius (cradius) " <<  meter_radius << endl
-		<< "Cell radius " << cell_radius << endl;*/
 		const double csval = cs_scalar.value();
 		const double rhoval = rho.value();
 		const int samples = cs_sample.size();
@@ -722,5 +647,11 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
     }
 }
 
+void Foam::reactionModels::secondOrderv2::setCellXSizes(
+    const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes
+)
+{
+    cellXSizes = cellSizes;
+}
 
 // ************************************************************************* //

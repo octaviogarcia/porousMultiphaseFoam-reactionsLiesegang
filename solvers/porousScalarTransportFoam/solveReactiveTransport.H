@@ -1,4 +1,24 @@
 {
+    if (determineCellSizes){
+        auto Cr = ref.mesh().C();
+        auto Cfr = ref.mesh().Cf();
+
+        vector iu(1, 0, 0);
+        auto meshSize = ref.mesh().delta().ref().size();
+        for(int i=0; i<=meshSize; i++){
+            if(i==0){
+                cellSizes[i] *= ((Cr[i]) & iu);
+            }
+            else if(i<meshSize){
+                cellSizes[i] *= ((Cfr[i] - Cr[i]) & iu);
+            }else{
+                cellSizes[i] *= ((Cr[i] - Cfr[i-1]) & iu);
+            }
+        }
+        reactionModel->setCellXSizes(cellSizes);
+        determineCellSizes = false;
+    }
+    
     //- update dispersion tensor coefficients and source terms
     forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateValue(runTime);
     forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateValue(runTime);
@@ -48,7 +68,7 @@
 
     reactionModel->postTransport();
 
-    scalar tauD=VGREAT;
+    scalar tauD = VGREAT;
 
     forAll(composition.Y(), speciesi)
     {
@@ -96,27 +116,38 @@
                 const auto& Cref = composition.Y(speciesi);
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
-				auto maxmagGradC = gMax(mag(fvc::grad(Cref)).ref());
+                auto magGradC = mag(fvc::grad(Cref)).ref();
+                volScalarField vectorTauD( //@SPEED: initialize once and reutilize?
+                    IOobject(
+                        word("vectorTauD"),
+                        Cref.mesh().time().timeName(),
+                        Cref.mesh(),
+                        IOobject::NO_READ,
+                        IOobject::NO_WRITE
+                    ),
+                    Cref.mesh(), 
+                    dimensionedScalar("",dimless,0.)
+                );
 
-                auto h = Cref.mesh().delta().ref()[5].x();
-                Info << "h value: " << h << endl;
-                auto hsq = pow(h,2);
-                Info << "h squared: " << hsq << endl;
+                Info << setprecision(15);
+
+                auto hsq = (cellSizes * cellSizes).ref();
                 auto k = kValueTauD;
-                Info << "k value: " << k << endl;
                 scalar tempTauD = 0.0;
 
-                if(maxmagGradC>0.0){
-                    auto fraction = maxCref/maxmagGradC;
-                    tempTauD = k*(fraction * (hsq/Deff));
-                }else{
-                    tempTauD = VGREAT;
+                vectorTauD = k*(hsq/Deff);
+                forAll(magGradC, cell){
+                    if(magGradC[cell]>0.0){
+                        vectorTauD[cell] = vectorTauD[cell]*(maxCref/magGradC[cell]);
+                    }else{
+                        vectorTauD[cell] = GREAT;
+                    }
                 }
-                Info << "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+                tempTauD = gMin(vectorTauD); 
+                Info<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
                 tauD = tempTauD < tauD ? tempTauD : tauD;
             }
             else{
-
                 scalar newDeltaT = runTime.deltaTValue();
                 const auto& Dact = composition.Y(speciesi);
                 const auto& Dprev = composition.Y(speciesi).oldTime();

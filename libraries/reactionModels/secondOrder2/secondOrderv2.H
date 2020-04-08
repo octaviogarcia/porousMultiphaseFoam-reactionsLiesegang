@@ -80,6 +80,8 @@ public:
 
     void postTransport() override;
 
+    void setCellXSizes(const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes) override;
+
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -146,15 +148,14 @@ private:
 
     bool flag1st=true;
 
-    volScalarField binary;      //Field with check results on concentration levels (below rho (1) or above or equal (0))
-    volScalarField heaviField;  //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+    volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
+    volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
+
+    volScalarField cellXSizes;
 
     dimensionedScalar rho;
-	dimensionedScalar cradius; //Field that indicates the cristalization radius = how many METERS to look around to check rho.
-	scalar steepness;
-
     scalar reductionCoef=1.0;
-    dimensionedScalar cs_scalar=dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
+    dimensionedScalar cs_scalar =dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
     scalar prevMaxC = 0.0;
     label influencedSpecieHS;
 	double m_per_sample;
