@@ -90,8 +90,6 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 double lerp(double l,double r,double p){
 	return l*(1-p)+r*p;
 }
-
-//No estoy seguro si openfoam maneja floats o doubles
 double sigmoidAbs(double x,double steepness){
 	x*=steepness;
 	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
@@ -113,6 +111,55 @@ double sigmoidAbs_00(double x){
 	return zero_to_one;
 }
 
+namespace Foam{
+	double sampleFieldLin(double x,const List<double>& ifield){
+		const int cells = ifield.size() - 1;
+		const double pos = min(max(x,0),1) * cells;//clampeo el x
+		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+		const double pos_flr = floor(pos);
+		const double pos_cl = ceil(pos);
+		const double mass_flr = ifield[pos_flr];
+		const double mass_cl = ifield[pos_cl];
+		const double proportion = pos - pos_flr;
+		return lerp(mass_flr,mass_cl,proportion);
+	}
+	double sampleFieldNN(double x,const List<double>& ifield){//Nearest Neighbor
+		const int cells = ifield.size() - 1;
+		const double pos = min(max(x,0),1) * cells;//clampeo el x
+		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+		const double pos_flr = floor(pos);
+		const double pos_cl = ceil(pos);
+		const double mass_flr = ifield[pos_flr];
+		const double mass_cl = ifield[pos_cl];
+		const double distance_flr = pos - pos_flr;
+		const double distance_cl = pos_cl - pos;
+		//Manejar igual como promedio?
+		const double mass = (distance_flr <= distance_cl)*mass_flr + (distance_flr > distance_cl)*mass_cl;
+		return mass;
+	}
+	double sampleFieldSmallest(double x,const List<double>& ifield){
+		const int cells = ifield.size() - 1;
+		const double pos = min(max(x,0),1) * cells;//clampeo el x
+		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+		const double pos_flr = floor(pos);
+		const double pos_cl = ceil(pos);
+		const double mass_flr = ifield[pos_flr];
+		const double mass_cl = ifield[pos_cl];
+		const double mass = (mass_flr <= mass_cl)*mass_flr + (mass_flr > mass_cl)*mass_cl;
+		return mass;
+	}
+	double sampleFieldBiggest(double x,const List<double>& ifield){
+		const int cells = ifield.size() - 1;
+		const double pos = min(max(x,0),1) * cells;//clampeo el x
+		//Info<< "Percentage" << x << " - " << "Pos " << pos << endl;
+		const double pos_flr = floor(pos);
+		const double pos_cl = ceil(pos);
+		const double mass_flr = ifield[pos_flr];
+		const double mass_cl = ifield[pos_cl];
+		const double mass = (mass_flr >= mass_cl)*mass_flr + (mass_flr < mass_cl)*mass_cl;
+		return mass;
+	}
+}
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrderv2::secondOrderv2
@@ -143,7 +190,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			Y_[0].mesh().delta().ref()[5].x()
 		)
 	),
-	steepness(4096)
+	steepness(4096),
+	m_per_sample(0.0001),//@HACK leer de un archivo
+	cs_sample(0.08/m_per_sample,0)//@HACK leer del blockMeshDict
 {
 
     //- Set the dimensions of all reaction coefficients
@@ -363,7 +412,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	}
 
     if (!massConservative){
-        
         volScalarField cs( // Field with c* amount for each cell
             IOobject(
                 word("cs"),
@@ -379,92 +427,39 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
         
-        const double cell_size = Y_[0].mesh().delta().ref()[5].x();
+        /*const double cell_size = Y_[0].mesh().delta().ref()[5].x();
         const double meter_radius = cradius.value();
         const double cell_radius = meter_radius / cell_size;
         Info << endl 
         << "Cell Size " << cell_size << endl
         << "Meters radius (cradius) " <<  meter_radius << endl
-		<< "Cell radius " << cell_radius << endl;
-		
-        forAll(fieldTargetMass, cell){
-			#define ALG_NO_SIGMOIDE
-			#ifdef ALG_NO_SIGMOIDE
-            binary[cell] = fieldTargetMass[cell] < rho.value();
+		<< "Cell radius " << cell_radius << endl;*/
+		const double csval = cs_scalar.value();
+		const double rhoval = rho.value();
+		const int samples = cs_sample.size();
+		const double samples_div = 1.0 / (samples - 1); 
+		for(int x = 0;x < samples;x++){
 			bool lsaturation = true;
-		    bool rsaturation = true;
-			
-            for(double delta = 0.5;delta<=cell_radius;delta+=0.5){
-                const double left = max(cell - delta,0);
-                const double right = min(cell + delta, fieldTargetMass.size() - 1);
-				const double l_flr = fieldTargetMass[floor(left)];
-                const double l_cl = fieldTargetMass[ceil(left)];
-				const double l_val = (l_flr+l_cl)*0.5;	
-				const double r_flr = fieldTargetMass[floor(right)];
-                const double r_cl = fieldTargetMass[ceil(right)];
-				const double r_val = (r_flr+r_cl)*0.5;	
-                lsaturation = lsaturation && (l_val < rho.value());
-                rsaturation = rsaturation && (r_val < rho.value());
-            }
+			bool rsaturation = true;
+			for(int rad = 1;rad <= 3;rad++)//@HACK: Calcular en base al radio
 			{
-				const double pos = max(cell - cell_radius,0);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				lsaturation = lsaturation && (val < rho.value());
+				const double l = x - rad/2.0;
+				const double r = x + rad/2.0;
+				lsaturation = lsaturation && (sampleFieldLin(l*samples_div,fieldTargetMass) < rhoval);
+				rsaturation = rsaturation && (sampleFieldLin(r*samples_div,fieldTargetMass) < rhoval);
 			}
-			{
-				const double pos = max(cell + cell_radius,0);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				rsaturation = rsaturation && (val < rho.value());
-			}
-			cs[cell] *= lsaturation*rsaturation;
-			#endif
-			#ifdef ALG_SIGMOIDE
-            binary[cell] = (1 - sigmoidAbs_01(fieldTargetMass[cell] - rho.value()));
-			double lsaturation = 1;
-		    double rsaturation = 1;
-			
-            for(double delta = 0.5;delta<=cell_radius;delta+=0.5){
-                const double left = max(cell - delta,0);
-                const double right = min(cell + delta, fieldTargetMass.size() - 1);
-				const double l_flr = fieldTargetMass[floor(left)];
-                const double l_cl = fieldTargetMass[ceil(left)];
-				const double l_val = (l_flr+l_cl)*0.5;	
-				const double r_flr = fieldTargetMass[floor(right)];
-                const double r_cl = fieldTargetMass[ceil(right)];
-				const double r_val = (r_flr+r_cl)*0.5;	
-                lsaturation *= sigmoidAbs_00(rho.value() - l_val);
-                rsaturation *= sigmoidAbs_00(rho.value() - r_val);
-            }
-			{
-				const double pos = max(cell - cell_radius,0);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				lsaturation *= sigmoidAbs_00(rho.value() - val);
-			}
-			{
-				const double pos = max(cell + cell_radius,0);
-				const double flr = fieldTargetMass[floor(pos)];
-                const double cl = fieldTargetMass[ceil(pos)];
-				const double proportion = pos - floor(pos);
-				const double val = lerp(flr,cl,proportion);
-				rsaturation *= sigmoidAbs_00(rho.value() - val);
-			}
-			cs[cell] *= lsaturation*rsaturation;
-			#endif
-        }
+			cs_sample[x] = lsaturation*rsaturation*csval;
+		}
+		const double cells_div = 1.0/(fieldTargetMass.size() - 1);
+		forAll(fieldTargetMass, cell){
+			binary[cell] = fieldTargetMass[cell] < rho.value();
+			cs[cell] = sampleFieldNN(cell*total_div,cs_sample);
+			//cs[cell] = sampleFieldLin(cell*cells_div,cs_sample);
+		}
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
-    }
-    //printField(heaviField);
-
+	}
+	
 	flag1st=false;
 
     massConservative_ = massConservative;

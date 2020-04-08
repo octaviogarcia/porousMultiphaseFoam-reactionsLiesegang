@@ -157,7 +157,8 @@ private:
     dimensionedScalar cs_scalar=dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
     scalar prevMaxC = 0.0;
     label influencedSpecieHS;
-
+	double m_per_sample;
+	List<double> cs_sample;
 };
 
 

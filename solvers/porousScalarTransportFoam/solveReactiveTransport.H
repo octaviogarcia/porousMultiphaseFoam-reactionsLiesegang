@@ -96,7 +96,7 @@
                 const auto& Cref = composition.Y(speciesi);
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
-                auto maxmagGradC = max(mag(fvc::grad(Cref))).value();
+				auto maxmagGradC = gMax(mag(fvc::grad(Cref)).ref());
 
                 auto h = Cref.mesh().delta().ref()[5].x();
                 Info << "h value: " << h << endl;
