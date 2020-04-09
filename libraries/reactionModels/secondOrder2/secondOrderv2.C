@@ -229,10 +229,10 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			reductionCoef = redCoef_value.value();
 		}
 
-        Info<<"   rho Loaded for reaction: " << rho.value() << endl;
-		Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
-        Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
-        Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
+         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
+	     Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
+         Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
+         Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
@@ -393,7 +393,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         //const double cell_radius = meter_radius / cell_size;    //unused
 
         Info<< endl 
-        << "Cell Size " << cell_size << endl        //unused
+        //<< "Cell Size " << cell_size << endl        //unused
         << "Meters radius (cradius) " <<  meter_radius << endl
 		//<< "Cell radius " << cell_radius << endl;               //unused
         << "Interp radius " << interp_mtrs_radius << endl; 
@@ -429,14 +429,14 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
                     if(interp_mtrs_radius != 0.0){
                         do{
-                            if(totalInsideCell + interp_mtrs_radius >= cellXSizes[cell-neighbour]/2){
+                            totalInsideCell += interp_mtrs_radius;
+                            if(totalInsideCell >= cellXSizes[cell-neighbour]/2){
                                 break;
                             }
                             else{
-                                proportion = cellXSizes[cell-neighbour]/2 + cellXSizes[cell-neighbour-1]/2 - interp_mtrs_radius;
+                                proportion = cellXSizes[cell-neighbour]/2 + cellXSizes[cell-neighbour-1]/2 - totalInsideCell;
                                 l_val = lerp(l_flr,l_cl,proportion);
                                 lsaturation = lsaturation && (l_val < rho.value());
-                                totalInsideCell += interp_mtrs_radius;
                             }
                         }while (true);
                     }
@@ -475,14 +475,14 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
                     if(interp_mtrs_radius != 0.0){
                         do{
-                            if(totalInsideCell + interp_mtrs_radius >= cellXSizes[cell+neighbour]/2){
+                            totalInsideCell += interp_mtrs_radius;
+                            if(totalInsideCell >= cellXSizes[cell+neighbour]/2){
                                 break;
                             }
                             else{
                                 proportion = totalInsideCell;
                                 r_val = lerp(r_flr,r_cl,proportion);
                                 rsaturation = rsaturation && (r_val < rho.value());
-                                totalInsideCell += interp_mtrs_radius;
                             }
                         }while (true);
                     }
