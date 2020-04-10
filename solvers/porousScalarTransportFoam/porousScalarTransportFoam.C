@@ -59,22 +59,8 @@ int main(int argc, char *argv[])
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     
     bool redoTimeStep = false;
-    bool determineCellSizes = true;
     int breakLoop = 0;
-
-    const auto& ref = composition.Y(0);     // (see if this can be put in somewhere else)
-    volScalarField cellSizes(       // h in TauD equation (see if this can be put somewhere else)
-        IOobject(
-            word("cellSizes"),
-            ref.mesh().time().timeName(),
-            ref.mesh(),
-            IOobject::NO_READ,
-            IOobject::NO_WRITE
-        ),
-        ref.mesh(),
-        dimensionedScalar("",dimless,2.0)
-    );
-  
+ 
     while (runTime.run())
     {
 

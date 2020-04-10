@@ -80,8 +80,7 @@ public:
 
     void postTransport() override;
 
-    void setCellXSizes(const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes) override;
-
+	Foam::volScalarField* getCells() override;
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -131,6 +130,9 @@ private:
 		const DimensionedField<scalar, Foam::volMesh>& cField,
 		const DimensionedField<scalar, Foam::volMesh>& csField
 	);
+	
+    double getCell(double p);
+    double getPercent(double cell);
 
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
@@ -150,15 +152,16 @@ private:
 
     volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
-
-    volScalarField cellXSizes;
+    volScalarField cellSizes;
 
     dimensionedScalar rho;
+    dimensionedScalar cradius;
     scalar reductionCoef=1.0;
-    dimensionedScalar cs_scalar =dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
+    dimensionedScalar cs_scalar = dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
     scalar prevMaxC = 0.0;
     label influencedSpecieHS;
-	double m_per_sample;
+	double m_per_sample;//@HACK should be dimensionedScalar?
+	double length;//@HACK should be dimensionedScalar?
 	List<double> cs_sample;
 };
 

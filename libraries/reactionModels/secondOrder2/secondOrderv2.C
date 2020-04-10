@@ -127,19 +127,49 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
     sk1(Y_.size(), List<dimensionedScalar>(Y_.size())),
     sk2(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
-    binary(IOobject(
-             	    word("binary"),
-             	    Y_[0].mesh().time().timeName(), Y_[0].mesh(),
-             		IOobject::NO_READ, IOobject::NO_WRITE
-            	),
-            	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
+    binary(
+        IOobject(
+            word("binary"),
+            Y_[0].mesh().time().timeName(), Y_[0].mesh(),
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        Y_[0].mesh(),
+		dimensionedScalar("",dimless,1)
+    ),
     heaviField(binary),
-    cellXSizes(binary),
+	cellSizes(
+        IOobject(
+            word("cellSizes"),
+            Y_[0].mesh().time().timeName(),
+            Y_[0].mesh(),
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        Y_[0].mesh(),
+        dimensionedScalar("",dimless,2.0)
+	),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
-	m_per_sample(0.0001),//@HACK leer de un archivo
-	cs_sample(0.08/m_per_sample,0)//@HACK leer del blockMeshDict
+    cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
+    m_per_sample(0.0001),//@HACK leer de un archivo
+    length(0.08),//@HACK leer del blockMeshDict
+    cs_sample(ceil(length/m_per_sample),0)
 {
-
+	auto Cr = Y_[0].mesh().C();
+	auto Cfr = Y_[0].mesh().Cf();
+    vector iu(1, 0, 0);
+    auto meshSize = Y_[0].mesh().delta().ref().size();
+    for(int i=0; i<=meshSize; i++){
+        if(i==0){
+			cellSizes[i] *= ((Cr[i]) & iu);
+        }
+        else if(i<meshSize){
+			cellSizes[i] *= ((Cfr[i] - Cr[i]) & iu);
+        }else{
+			cellSizes[i] *= ((Cr[i] - Cfr[i-1]) & iu);
+        }
+    }
+	
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -200,6 +230,10 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
         dimensionedScalar rho_value = reaction.lookupOrDefault("rho",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
         if(rho_value.value()!=0){
 			rho = rho_value;
+        }
+        dimensionedScalar cradius_value = reaction.lookupOrDefault("cradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));
+        if(cradius_value.value()!=0){
+            cradius = cradius_value;
         }
 		
         dimensionedScalar redCoef_value = reaction.lookupOrDefault("redCoef",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),1));
@@ -363,23 +397,23 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		const double rhoval = rho.value();
 		const int samples = cs_sample.size();
 		const double samples_div = 1.0 / (samples - 1); 
+		const double radius_percent = (cradius.value()/3.0)/length;
 		for(int x = 0;x < samples;x++){
 			bool lsaturation = true;
 			bool rsaturation = true;
-			for(int rad = 1;rad <= 3;rad++)//@HACK: Calcular en base al radio
-			{
-				const double l = x - rad/2.0;
-				const double r = x + rad/2.0;
-				lsaturation = lsaturation && (sampleFieldLin(l*samples_div,fieldTargetMass) < rhoval);
-				rsaturation = rsaturation && (sampleFieldLin(r*samples_div,fieldTargetMass) < rhoval);
+			const double p = x*samples_div; //x as percentage
+			for(int mul = 1;mul <= 3;mul++){
+				const double l = p - radius_percent*mul;
+				const double r = p + radius_percent*mul;
+				lsaturation = lsaturation && (sampleFieldLinAbs(getCell(l),fieldTargetMass) < rhoval);
+				rsaturation = rsaturation && (sampleFieldLinAbs(getCell(r),fieldTargetMass) < rhoval);
 			}
 			cs_sample[x] = lsaturation*rsaturation*csval;
 		}
-		const double cells_div = 1.0/(fieldTargetMass.size() - 1);
 		forAll(fieldTargetMass, cell){
 			binary[cell] = fieldTargetMass[cell] < rho.value();
-			cs[cell] = sampleFieldNN(cell*total_div,cs_sample);
-			//cs[cell] = sampleFieldLin(cell*cells_div,cs_sample);
+			cs[cell] = sampleFieldNNAbs(getPercent(cell)*(samples-1),cs_sample);
+			//cs[cell] = sampleFieldLinAbs(getPercent(cell)*(samples-1),cs_sample);
 		}
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
@@ -405,6 +439,24 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
     }
 }
 
+// @SPEED Estas funciones son memoizables porque siempre se llaman con los mismos
+// valores en una ejecucion, pow y log son bastante caras...
+double Foam::reactionModels::secondOrderv2::getCell(double p){
+    const auto& c = cellSizes.internalField();
+    const double r = c[5]/c[4];//@SPEED: Precalculable
+    double val = 1 - ((length*p)/c[0])*(1 - r);
+	//@SPEED log(r) es precalculable
+	return log(val)/log(r);
+}
+double Foam::reactionModels::secondOrderv2::getPercent(double cell){
+    const auto& c = cellSizes.internalField();
+    const double r = c[5]/c[4];
+	double val = (1 - pow(r,cell))/(1 - r);
+	return (c[0]/length)*val;
+}
+Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCells(){
+	return &cellSizes;
+}
 
 Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTerm
 (
@@ -646,12 +698,4 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
         hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
     }
 }
-
-void Foam::reactionModels::secondOrderv2::setCellXSizes(
-    const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes
-)
-{
-    cellXSizes = cellSizes;
-}
-
 // ************************************************************************* //

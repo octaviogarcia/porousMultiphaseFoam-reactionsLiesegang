@@ -105,8 +105,6 @@ public:
     // for the current time step.
     virtual void postTransport() = 0;
 
-    virtual void setCellXSizes(const Foam::GeometricField<double, Foam::fvPatchField, Foam::volMesh>& cellSizes) = 0;
-
     //- Destructor
     virtual ~reactionModel() = default;
 
@@ -114,7 +112,7 @@ public:
     reactionModel(const reactionModel&) = delete;
     void operator=(const reactionModel&) = delete;
 
-
+	virtual Foam::volScalarField* getCells(){ return nullptr; } 
 protected:
 
     // Constructors

@@ -1,24 +1,4 @@
-{
-    if (determineCellSizes){
-        auto Cr = ref.mesh().C();
-        auto Cfr = ref.mesh().Cf();
-
-        vector iu(1, 0, 0);
-        auto meshSize = ref.mesh().delta().ref().size();
-        for(int i=0; i<=meshSize; i++){
-            if(i==0){
-                cellSizes[i] *= ((Cr[i]) & iu);
-            }
-            else if(i<meshSize){
-                cellSizes[i] *= ((Cfr[i] - Cr[i]) & iu);
-            }else{
-                cellSizes[i] *= ((Cr[i] - Cfr[i-1]) & iu);
-            }
-        }
-        reactionModel->setCellXSizes(cellSizes);
-        determineCellSizes = false;
-    }
-    
+{    
     //- update dispersion tensor coefficients and source terms
     forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateValue(runTime);
     forAll(sourceEventList,sourceEventi) sourceEventList[sourceEventi]->updateValue(runTime);
@@ -131,7 +111,8 @@
 
                 Info << setprecision(15);
 
-                auto hsq = (cellSizes * cellSizes).ref();
+                const auto& cellSizes = (*reactionModel->getCells());
+			    auto hsq = (cellSizes * cellSizes).ref();
                 auto k = kValueTauD;
                 scalar tempTauD = 0.0;
 
