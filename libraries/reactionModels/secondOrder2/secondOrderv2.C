@@ -412,8 +412,8 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		}
 		forAll(fieldTargetMass, cell){
 			binary[cell] = fieldTargetMass[cell] < rho.value();
-			cs[cell] = sampleFieldNNAbs(getPercent(cell)*(samples-1),cs_sample);
-			//cs[cell] = sampleFieldLinAbs(getPercent(cell)*(samples-1),cs_sample);
+			//cs[cell] = sampleFieldNNAbs(getPercent(cell)*(samples-1),cs_sample);
+			cs[cell] = sampleFieldLinAbs(getPercent(cell)*(samples-1),cs_sample);
 		}
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
