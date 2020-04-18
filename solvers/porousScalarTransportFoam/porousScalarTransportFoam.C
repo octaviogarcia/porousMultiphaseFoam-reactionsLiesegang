@@ -79,13 +79,12 @@ int main(int argc, char *argv[])
 
         do{
             if(redoTimeStep){
-                Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-                << "  ClockTime = " << runTime.elapsedClockTime() << " s"
-                << nl << endl;
-                
+                //Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+                //<< "  ClockTime = " << runTime.elapsedClockTime() << " s"
+                //<< nl << endl;
             }
 
-            Info << "Time = " << runTime.timeName() << nl << endl;
+            //Info << "Time = " << runTime.timeName() << nl << endl;
             #include "solveReactiveTransport.H"
 
         } while (redoTimeStep);
@@ -94,12 +93,15 @@ int main(int argc, char *argv[])
 
         #include "eventWrite.H"
 
-        Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-            << "  ClockTime = " << runTime.elapsedClockTime() << " s"
-            << nl << endl;
+        //Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+        //    << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+        //    << nl << endl;
         
     }
-
+	
+	Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+	    << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+	    << nl << endl;
     Info<< "End\n" << endl;
 
     return 0;

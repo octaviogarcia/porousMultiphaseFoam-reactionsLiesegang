@@ -151,9 +151,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 	),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
     cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
-    m_per_sample(0.0001),//@HACK leer de un archivo
+    m_per_sample(0.00005),//@HACK leer de un archivo
     length(0.08),//@HACK leer del blockMeshDict
-    cs_sample(ceil(length/m_per_sample),0)
+    cs_sample(int(ceil(length/m_per_sample)),0.0),
+	getCell_mem(int(1010),-1.0),
+	getPercent_mem(int(ceil(length/m_per_sample)),-1.0)
 {
 	auto Cr = Y_[0].mesh().C();
 	auto Cfr = Y_[0].mesh().Cf();
@@ -369,7 +371,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         return;
     }
 	
-    Info<< "rho value:" << rho.value() << endl;
+    //Info<< "rho value:" << rho.value() << endl;
 
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
@@ -397,12 +399,13 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		const double rhoval = rho.value();
 		const int samples = cs_sample.size();
 		const double samples_div = 1.0 / (samples - 1); 
-		const double radius_percent = (cradius.value()/3.0)/length;
+		const double times = cradius.value()/(0.5*m_per_sample);
+		const double radius_percent = (cradius.value()/times)/length;
 		for(int x = 0;x < samples;x++){
 			bool lsaturation = true;
 			bool rsaturation = true;
 			const double p = x*samples_div; //x as percentage
-			for(int mul = 1;mul <= 3;mul++){
+			for(int mul = 1;mul <= times;mul++){
 				const double l = p - radius_percent*mul;
 				const double r = p + radius_percent*mul;
 				lsaturation = lsaturation && (sampleFieldLinAbs(getCell(l),fieldTargetMass) < rhoval);
@@ -422,7 +425,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	flag1st=false;
 
     massConservative_ = massConservative;
-
     if(massConservative_)
     {
         //-To be mass conservative, reaction terms need to be precomputed and fully explicit
@@ -439,20 +441,62 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
     }
 }
 
-// @SPEED Estas funciones son memoizables porque siempre se llaman con los mismos
-// valores en una ejecucion, pow y log son bastante caras...
 double Foam::reactionModels::secondOrderv2::getCell(double p){
+	#if 0
+	p = max(min(p,1),0);
+	int slot = round(p*1000);
+	//@HACK aumentar precision?, solo 1 digito por ahora..
+	/*if(getCell_mem[slot]>=0){
+		return getCell_mem[slot];
+	}*/
     const auto& c = cellSizes.internalField();
+	double currp = 0;
+	int i = 0;
+	for(;i<c.size();i++){
+		double val = c[i]/length;
+		if((currp+val) >= p) break;
+		currp += val;
+	}
+	if(i == c.size()) return (c.size() - 1);
+	double length_over_cell = (p - currp)*length;
+	double ret = i + length_over_cell / c[i];
+	getCell_mem[slot] = ret;
+	return ret;
+	#else
+	const auto& c = cellSizes.internalField();
     const double r = c[5]/c[4];//@SPEED: Precalculable
     double val = 1 - ((length*p)/c[0])*(1 - r);
-	//@SPEED log(r) es precalculable
-	return log(val)/log(r);
+    //@SPEED log(r) es precalculable
+    return log(val)/log(r);
+	#endif
 }
 double Foam::reactionModels::secondOrderv2::getPercent(double cell){
+	#if 0
+	//@HACK no funcionaria bien con valores intermedios
+	//Aunque seria raro que se llame asi
+	int slot = round(cell);
+	
+	if(getPercent_mem[slot]>=0){
+		return getPercent_mem[slot];
+	}
+	
     const auto& c = cellSizes.internalField();
+	double currlength = 0;
+	int i = 0;
+	for(;i<c.size();i++){
+		if(i > cell) break;
+		currlength += c[i];
+	}
+	double proportion = cell - (i-1);
+	double ret = (currlength + proportion * c[i])/length;
+	getPercent_mem[slot] = ret;
+	return ret;
+	#else
+	const auto& c = cellSizes.internalField();
     const double r = c[5]/c[4];
 	double val = (1 - pow(r,cell))/(1 - r);
 	return (c[0]/length)*val;
+	#endif
 }
 Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCells(){
 	return &cellSizes;
