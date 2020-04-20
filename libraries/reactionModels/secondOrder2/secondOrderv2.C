@@ -91,6 +91,14 @@ double lerp(double l,double r,double p){
 	return l*(1-p)+r*p;
 }
 
+double sigmoidAbs_00(double x){
+	x-=0.05;//Corrimiento a la der para que x = 0 -> 0
+	x*=100;
+	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
+	const double zero_to_one = (negOne_to_one + 1)/2.0;
+	return zero_to_one;
+}
+
 namespace Foam{
 	double sampleFieldLinAbs(double cell,const List<double>& ifield){
 		const double pos = min(max(cell,0),ifield.size() - 1);//clampeo el x
@@ -152,6 +160,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
     cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
     m_per_sample(0.00005),//@HACK leer de un archivo
+	//m_per_sample(0.0001),
     length(0.08),//@HACK leer del blockMeshDict
     cs_sample(int(ceil(length/m_per_sample)),0.0),
 	getCell_mem(int(1010),-1.0),
@@ -739,7 +748,12 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
 		// This is literally x > 0? 1 : 0
-        hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+        //hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+		double diff = cField[cell]-csField[cell];
+		double sig = sigmoidAbs_00(cField[cell]-csField[cell]);
+		//Info << "difference " << diff << endl;
+		//Info << "sigmoid " << sig << endl;
+        hIntfield[cell] = (diff < -0.1)*0 + (diff >= -0.1 && diff <= 0.1)*sig + (diff > 0.1)*1;
     }
 }
 // ************************************************************************* //
