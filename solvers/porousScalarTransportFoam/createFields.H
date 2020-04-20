@@ -2,7 +2,7 @@
 ////////////////////// GENERAL PROPERTIES //////////////////////
 ////////////////////////////////////////////////////////////////
 
-Info << "Reading transportProperties" << endl;
+// Info<< "Reading transportProperties" << endl;
 IOdictionary transportProperties
 (
     IOobject
@@ -15,7 +15,7 @@ IOdictionary transportProperties
     )
 );
 
-Info<< "Reading porosity field eps (if present)" << endl;
+// Info<< "Reading porosity field eps (if present)" << endl;
 dimensionedScalar epsScalar(transportProperties.lookupOrDefault("eps",dimensionedScalar("",dimless,0.)));
 volScalarField eps
 (
@@ -39,7 +39,7 @@ List<sourceEventFile*> sourceEventList;
 
 wordList speciesNames(transportProperties.lookupOrDefault("species", wordList(1, "C")));
 
-Info<< "Reading composition\n" << endl;
+// Info<< "Reading composition\n" << endl;
 
 multiscalarMixture composition
 (
@@ -52,14 +52,14 @@ multiscalarMixture composition
     "C"
 );
 
-Info<< "Reading phaseName" << endl;
+// Info<< "Reading phaseName" << endl;
 word phaseName(transportProperties.optionalSubDict("porousTransport").lookupOrDefault<word>("phaseName",""));
 
 ///////////////////////////////////////////////////////////////////
 ////////////////////// POTENTIAL-SATURATION ///////////////////////
 ///////////////////////////////////////////////////////////////////
 
-Info << nl << "Reading water content theta and/or Saturation field S" << phaseName << "..." << endl;
+// Info<< nl << "Reading water content theta and/or Saturation field S" << phaseName << "..." << endl;
 volScalarField theta
 (
     IOobject
@@ -93,17 +93,17 @@ if (theta.headerOk())
 {
     Saturation = theta/eps;
     Uname = "U";
-    Info << "===> field S" << phaseName << " computed from theta/eps, min = " << min(Saturation).value() << " ; max = " << max(Saturation).value() << endl;
+    // Info<< "===> field S" << phaseName << " computed from theta/eps, min = " << min(Saturation).value() << " ; max = " << max(Saturation).value() << endl;
 }
 else
 {
     if (Saturation.headerOk())
     {
-        Info << "===> field S" << phaseName << " read, min = " << min(Saturation).value() << " ; max = " << max(Saturation).value() <<  endl;
+        // Info<< "===> field S" << phaseName << " read, min = " << min(Saturation).value() << " ; max = " << max(Saturation).value() <<  endl;
     }
     else
     {
-        Info << "===> Saturation file not found (saturated flow)" << endl;
+        // Info<< "===> Saturation file not found (saturated flow)" << endl;
     }
 }
 
@@ -111,7 +111,7 @@ else
 ////////////////////////// VELOCITY - FLUXES ////////////////////////////////
 /////////////////////////////////////////////////////////////////////////////
 
-Info<< nl << "Reading field U" << phaseName << endl;
+// Info<< nl << "Reading field U" << phaseName << endl;
 volVectorField U
 (
     IOobject
@@ -140,11 +140,11 @@ surfaceScalarField phi
 
 if (phi.headerOk())
 {
-    Info << nl << "Reading field phi" << phaseName << endl;
+    // Info<< nl << "Reading field phi" << phaseName << endl;
 }
 else
 {
-    Info<< nl << "Computing field phi" << phaseName << " from field U" << phaseName << endl;
+    // Info<< nl << "Computing field phi" << phaseName << " from field U" << phaseName << endl;
 }
 
 

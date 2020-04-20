@@ -80,11 +80,11 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 	const auto& field = dfield.internalField();
     forAll(field, index){        
 		if(index % 100 == 0){
-	        Foam::Info << Foam::endl;
+	        //Foam::Info << Foam::endl;
 		}
-		Foam::Info << " " << field[index];
+		//Foam::Info << " " << field[index];
 	}
-	Foam::Info << Foam::endl;
+	//Foam::Info << Foam::endl;
 }
 
 double lerp(double l,double r,double p){
@@ -135,13 +135,15 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             	Y_[0].mesh(), dimensionedScalar("",dimless,1)),
     heaviField(binary),
     cellXSizes(binary),
+    iFacesSaturation(binary),
+    //cellSpatialPos(binary),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),     //this can be initilized in secondOrderv2.H, like its done with cs_scalar
 	//@HACK ver si hay alguna forma de iniciarlo mejor
 	cradius("",
 		dimensionedScalar(
 			"",
 			dimensionSet(0,1,0,0,0,0,0),
-			Y_[0].mesh().delta().ref()[5].x()
+			Y_[0].mesh().delta().ref()[5].x()       //esto bien podria ser 0.0 creo
 		)
 	),
 	steepness(4096)
@@ -168,16 +170,16 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     //- Read list of reactions
     auto reactionList = reactions.subOrEmptyDict("reactions");
 
-    Info<< "Reading reactions..." << endl << endl;
+   // Info<< "Reading reactions..." << endl << endl;
     
     forAllConstIter(dictionary, reactionList, iter)
     {
         const auto& reactionName = iter().keyword();
         const auto& reaction = reactionList.subDict(reactionName);
 
-        Info<< "Reaction " << reactionName << endl
-            << "{" << endl
-            << "    " << reaction.lookupType<string>("reaction") << endl;
+       // Info<< "Reaction " << reactionName << endl
+       //     << "{" << endl
+       //     << "    " << reaction.lookupType<string>("reaction") << endl;
         
 
         List<specieCoeffs> lhs;
@@ -229,10 +231,11 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			reductionCoef = redCoef_value.value();
 		}
 
-         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
-	     Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
-         Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
-         Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
+        Info<<"   rho Loaded for reaction: " << rho.value() << endl;
+	    Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
+        Info<<"   iradius Loaded for reaction: " << iradius.value() << endl;
+        Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
+        Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
@@ -245,7 +248,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			cs_scalar = cs_value;
         }
 
-        Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
+       Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
                 
         if(reaction.found("kb")) 
         {
@@ -254,7 +257,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
 
-        Info<< "}" << endl << endl;
+       // Info<< "}" << endl << endl;
 
         Info<< "Loaded Reaction: " << endl;     //TODO: delete this
         OStringStream reactionOSStream;         //<-|
@@ -268,7 +271,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     //- If no reactions list found, read any reaction rate constants given with each species
     if(!reactions.found("reactions"))
     {
-        Info<< "===> No reactions found. Reading rate constants directly..." << endl;
+       // Info<< "===> No reactions found. Reading rate constants directly..." << endl;
 
         forAll(Y_, speciesi)
         {
@@ -346,7 +349,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             }
         }
 
-        Info<< "Finished reading rate constants directly." << endl;
+       // Info<< "Finished reading rate constants directly." << endl;
     }
 }
 
@@ -359,7 +362,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         return;
     }
 	
-    Info<< "rho value:" << rho.value() << endl;
+   // Info<< "rho value:" << rho.value() << endl;
 
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
@@ -386,17 +389,23 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
         
-        const double cell_size = Y_[0].mesh().delta().ref()[5].x();     //unused
+        //const double cell_size = Y_[0].mesh().delta().ref()[5].x();     //unused
         const double meter_radius = cradius.value();
         const double interp_mtrs_radius = iradius.value();
 
         //const double cell_radius = meter_radius / cell_size;    //unused
 
-        Info<< endl 
+       // Info<< endl 
         //<< "Cell Size " << cell_size << endl        //unused
-        << "Meters radius (cradius) " <<  meter_radius << endl
+        //<< "Meters radius (cradius) " <<  meter_radius << endl
 		//<< "Cell radius " << cell_radius << endl;               //unused
-        << "Interp radius " << interp_mtrs_radius << endl; 
+        //<< "Interp radius " << interp_mtrs_radius << endl; 
+
+        for(int cell=0, /*cellSpatialPos[0]=cellXSizes[0]/2*/; cell < cellXSizes.size() - 1; cell++){
+            double proportion = (cellXSizes[cell]/2)/((cellXSizes[cell]/2)+(cellXSizes[cell+1]/2));
+            iFacesSaturation[cell] = lerp(fieldTargetMass[cell],fieldTargetMass[cell+1],proportion);
+            //cellSpatialPos[cell+1] = cellSpatialPos[cell] + cellXSizes[cell]/2 + cellXSizes[cell+1]/2;
+        }
 		
         forAll(fieldTargetMass, cell){
 			#define ALG_NO_SIGMOIDE
@@ -417,79 +426,40 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                 delta+=0.5, dCovered_l += cellXSizes[max(cell-neighbour,0)]/2, 
                 dCovered_r += cellXSizes[min(cell+neighbour,cellXSizes.size()-1)]/2)
             {
-                if (dCovered_l <= meter_radius) {
-                    const int leftmostCell =  max(cell-neighbour-1,0);
-                    const double left = max(cell - delta,0);
-                	const double l_flr = fieldTargetMass[floor(left)];
-                    const double l_cl = fieldTargetMass[ceil(left)];
-                    
-                    double proportion, l_val = 0.0;
-                    double totalInsideCell = 0.0;
-
-                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
-                    if(interp_mtrs_radius != 0.0){
-                        do{
-                            totalInsideCell += interp_mtrs_radius;
-                            if(totalInsideCell >= cellXSizes[cell-neighbour]/2){
-                                break;
-                            }
-                            else{
-                                proportion = cellXSizes[cell-neighbour]/2 + cellXSizes[cell-neighbour-1]/2 - totalInsideCell;
-                                l_val = lerp(l_flr,l_cl,proportion);
-                                lsaturation = lsaturation && (l_val < rho.value());
-                            }
-                        }while (true);
-                    }
-                    ////-^
-
-                    proportion = left - floor(left);
-				    l_val = lerp(l_flr,l_cl,proportion);
-                    lsaturation = lsaturation && (l_val < rho.value());
-
-                    if(dCovered_l+cellXSizes[leftmostCell+1]/2 > meter_radius
-                        || (dCovered_l+cellXSizes[leftmostCell]/2 > meter_radius
-                            && delta!=floor(delta)) 
-                        )
-                    {
-                        const double diff = meter_radius-dCovered_l;
-                        const double quantOfTotal = (delta!=floor(delta)) ? 
-                                cellXSizes[leftmostCell]/2 - diff 
-                                : cellXSizes[leftmostCell+1]/2 - diff + cellXSizes[leftmostCell]/2;
-                        prop_left_edge = quantOfTotal/(cellXSizes[leftmostCell+1]/2 + cellXSizes[leftmostCell]/2);
-
-                        const double val = lerp(fieldTargetMass[leftmostCell]
-                                                ,fieldTargetMass[leftmostCell+1]
-                                                ,prop_left_edge);
-                        lsaturation = lsaturation && (val < rho.value());
-                    }
-                }
                 if (dCovered_r <= meter_radius) {
                     const int rightmostCell =  min(cell+neighbour+1,cellXSizes.size()-1);
                     const double right = min(cell + delta, fieldTargetMass.size() - 1);
-                    const double r_flr = fieldTargetMass[floor(right)];
-                    const double r_cl = fieldTargetMass[ceil(right)];
 
                     double proportion, r_val = 0.0;
                     double totalInsideCell = 0.0;
 
                     ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
                     if(interp_mtrs_radius != 0.0){
+                        
+                        const double r_flr_2 = delta==floor(delta) ? 
+                                                fieldTargetMass[floor(min(right-0.5, fieldTargetMass.size() - 1))] 
+                                                : fieldTargetMass[floor(right)];
+                        const double r_cl_2 = delta==floor(delta) ? 
+                                                fieldTargetMass[ceil(min(right-0.5, fieldTargetMass.size() - 1))] 
+                                                : fieldTargetMass[ceil(right)];
+
                         do{
                             totalInsideCell += interp_mtrs_radius;
-                            if(totalInsideCell >= cellXSizes[cell+neighbour]/2){
-                                break;
-                            }
-                            else{
-                                proportion = totalInsideCell;
-                                r_val = lerp(r_flr,r_cl,proportion);
-                                rsaturation = rsaturation && (r_val < rho.value());
-                            }
+
+                            if(totalInsideCell >= cellXSizes[rightmostCell-1]/2){
+                                break;}
+                            proportion = delta==floor(delta) ? 
+                                        (totalInsideCell + cellXSizes[rightmostCell-2]/2)/((cellXSizes[rightmostCell-2]+cellXSizes[rightmostCell-1])/2)
+                                        : totalInsideCell/((cellXSizes[rightmostCell-1]+cellXSizes[rightmostCell])/2);
+                            r_val = lerp(r_flr_2,r_cl_2,proportion);
+                            rsaturation = rsaturation && (r_val < rho.value());
+
                         }while (true);
                     }
                     ////-^
-                    
-                    proportion = right - floor(right);
-                    r_val = lerp(r_flr,r_cl,proportion);
+
+                    r_val = delta==floor(delta)? fieldTargetMass[right] : iFacesSaturation[floor(right)];
+
                     rsaturation = rsaturation && (r_val < rho.value());
                     
                     if(dCovered_r+cellXSizes[rightmostCell-1]/2 > meter_radius
@@ -499,14 +469,66 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
                     {
                         const double diff = meter_radius-dCovered_r;
                         const double quantOfTotal = (delta!=floor(delta)) ? 
-                                diff + cellXSizes[rightmostCell-1]/2 
-                                : diff;
+                                                    diff + cellXSizes[rightmostCell-1]/2 
+                                                    : diff;
                         prop_right_edge = quantOfTotal/(cellXSizes[rightmostCell-1]/2 + cellXSizes[rightmostCell]/2);
                         
                         const double val = lerp(fieldTargetMass[rightmostCell-1]
                                                 ,fieldTargetMass[rightmostCell]
                                                 ,prop_right_edge);
                         rsaturation = rsaturation && (val < rho.value());
+                    }
+                }
+                if (dCovered_l <= meter_radius) {
+                    const int leftmostCell =  max(cell-neighbour-1,0);
+                    const double left = max(cell - delta,0);
+                    
+                    double proportion, l_val = 0.0;
+                    double totalInsideCell = 0.0;
+
+                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
+                    if(interp_mtrs_radius != 0.0){
+
+                        const double l_flr_2 = delta==floor(delta) ? 
+                                                fieldTargetMass[floor(max(left+0.5, 0))] 
+                                                : fieldTargetMass[floor(left)];
+                        const double l_cl_2 = delta==floor(delta) ? 
+                                                fieldTargetMass[ceil(max(left+0.5, 0))] 
+                                                : fieldTargetMass[ceil(left)];
+
+                        do{
+                            totalInsideCell += interp_mtrs_radius;
+                            if(totalInsideCell >= cellXSizes[leftmostCell+1]/2){
+                                break;}
+                            proportion = delta==floor(delta) ? 
+                                        (totalInsideCell + cellXSizes[leftmostCell+2]/2)/((cellXSizes[leftmostCell+2]+cellXSizes[leftmostCell+1])/2)
+                                        : totalInsideCell/((cellXSizes[leftmostCell+1]+cellXSizes[leftmostCell])/2);
+                            l_val = lerp(l_flr_2,l_cl_2,1.0-proportion);
+                            lsaturation = lsaturation && (l_val < rho.value());
+
+                        }while (true);
+                    }
+                    ////-^
+
+                    l_val = delta==floor(delta)? fieldTargetMass[left] : iFacesSaturation[floor(left)];
+
+                    lsaturation = lsaturation && (l_val < rho.value());
+
+                    if(dCovered_l+cellXSizes[leftmostCell+1]/2 > meter_radius
+                        || (dCovered_l+cellXSizes[leftmostCell]/2 > meter_radius
+                            && delta!=floor(delta)) 
+                        )
+                    {
+                        const double diff = meter_radius-dCovered_l;
+                        const double quantOfTotal = (delta!=floor(delta)) ? 
+                                                    cellXSizes[leftmostCell]/2 - diff 
+                                                    : cellXSizes[leftmostCell+1]/2 - diff + cellXSizes[leftmostCell]/2;
+                        prop_left_edge = quantOfTotal/(cellXSizes[leftmostCell+1]/2 + cellXSizes[leftmostCell]/2);
+
+                        const double val = lerp(fieldTargetMass[leftmostCell]
+                                                ,fieldTargetMass[leftmostCell+1]
+                                                ,prop_left_edge);
+                        lsaturation = lsaturation && (val < rho.value());
                     }
                 }
                 if (delta!=floor(delta)){   //the cell from which the size is added is changed half of the time

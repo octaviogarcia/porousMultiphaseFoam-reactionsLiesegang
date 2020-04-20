@@ -152,6 +152,8 @@ private:
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
 
     volScalarField cellXSizes;
+    //volScalarField cellSpatialPos;
+    volScalarField iFacesSaturation;
 
     dimensionedScalar rho;
 	dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.

@@ -38,21 +38,21 @@
             reactionModel->correct(false);
             #include "CEqn.H"
             
-            Info << "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
+            //Info << "Reactive transport iteration : " << iterTransport << ", Residual = " << Cresidual << endl; 
             
             if(actualOkStop){
-                Info<< "No more iterations needed..." << endl;
+                // Info<< "No more iterations needed..." << endl;
             }
 
         } while(Cresidual > reactionTol); 
 
         if(reactionMassConservative && !reactionModel->alwaysMassConservative())
         {
-            Info << " Mass conservation:" << endl;
+            //Info << " Mass conservation:" << endl;
             reactionModel->correct(true);
             #include "CEqn.H"
 
-            Info<< "Reactive transport mass conservation correction, Final residual = " << Cresidual << endl;
+            // Info<< "Reactive transport mass conservation correction, Final residual = " << Cresidual << endl;
 
             if(Cresidual > reactionTol)
             {
@@ -103,11 +103,11 @@
                 }
             }
         }
-        Info<< "Concentration Min(" << speciesName << ") = " << min(C).value() 
-            << " Max(" << speciesName << ") = " << max(C.internalField()).value()
-            << " mass(" << speciesName << ") = " << fvc::domainIntegrate(R*C*Saturation*eps).value()
-            << " dCmax = " << dCdTmax[speciesi]*runTime.deltaTValue()
-            << endl;
+        // Info<< "Concentration Min(" << speciesName << ") = " << min(C).value() 
+        //    << " Max(" << speciesName << ") = " << max(C.internalField()).value()
+        //    << " mass(" << speciesName << ") = " << fvc::domainIntegrate(R*C*Saturation*eps).value()
+        //    << " dCmax = " << dCdTmax[speciesi]*runTime.deltaTValue()
+        //    << endl;
         
         if(adjustTimeStep){
             auto Deff = composition.Deff(speciesi)[5].xx();
@@ -138,7 +138,7 @@
                 //auto patchFaceCenterLeft = boundary[word("patch left")].Cf()[0];
                 //auto patchFaceCenterRight = boundary[word("patch right")].Cf()[0];
 
-                Info << setprecision(15);
+                //Info << setprecision(15);
 
                 //for(int i=0; i<=meshSize; i++){
                 //    Info << "i = " << i << " size = " << cellSizes[i] << endl;
@@ -157,7 +157,7 @@
                     }
                 }
                 tempTauD = gMin(vectorTauD); 
-                Info<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
+                // Info<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
 			    
                 #endif
                 #ifdef HOMOGENEOUS_CELLS
@@ -182,7 +182,7 @@
                 }else{
                     tempTauD = VGREAT;
                 }
-                Info<< "tauD specie: " << speciesi << " value: " << tempTauD << endl;
+                // Info<< "tauD specie: " << speciesi << " value: " << tempTauD << endl;
                 #endif
 
                 tauD = tempTauD < tauD ? tempTauD : tauD;
@@ -196,11 +196,11 @@
 
                 auto variation = max(Dact-Dprev).value();
 
-                Info << endl << "tauD selected: " << tauD << endl;
-                Info << "D Variation: " << variation << endl;
+                //Info << endl << "tauD selected: " << tauD << endl;
+                //Info << "D Variation: " << variation << endl;
 
                 if(variation > maxDCVariation){
-                    Info<< "-> Max D variation exceded ..."<< endl;
+                    // Info<< "-> Max D variation exceded ..."<< endl;
                     breakLoop=100;      //amount of timesteps taken with constant deltaT to avoid a loop where deltaT is increased and decreased continuously, can be generalized
 
                     forAll(composition.Y(), speciesj){      // Reset fields to previous value.
@@ -210,7 +210,7 @@
                     runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
                     
                     newDeltaT *= 0.8;       // calculate new delta T to achieve less variation
-                    Info<< "deltaT reduced 20% ..."<< endl << endl;
+                    // Info<< "deltaT reduced 20% ..."<< endl << endl;
 
                     runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
                     
@@ -219,23 +219,23 @@
                 else if (!breakLoop || (variation < maxDCVariation*0.75)){  // variation is acceptable to keep increasing deltaT (can be generalized)
                     if (tauD > (1.2 * newDeltaT)){
                         newDeltaT *= 1.2;
-                        Info<< "deltaT increased 20% ..."<< endl << endl;
+                        // Info<< "deltaT increased 20% ..."<< endl << endl;
                     }else if (tauD < 1.2 * newDeltaT){
                         newDeltaT = tauD;
-                        Info<< "using tauD ..."<< endl << endl;
+                        // Info<< "using tauD ..."<< endl << endl;
                     }
                     redoTimeStep=false;
                 }
                 else{
                     breakLoop--;
-                    Info<< "Decreasing loop counter. Actual value: " << breakLoop << endl;
+                    // Info<< "Decreasing loop counter. Actual value: " << breakLoop << endl;
                     if(!breakLoop){
-                        Info<< "Loop broken ... " << endl;
+                        // Info<< "Loop broken ... " << endl;
                     }
                     redoTimeStep=false;
                 }
                 runTime.setDeltaT( min(newDeltaT, maxDeltaT) );
-                Info<< "deltaT = " <<  runTime.deltaTValue() << endl << endl;
+                // Info<< "deltaT = " <<  runTime.deltaTValue() << endl << endl;
             }
         }
     }
