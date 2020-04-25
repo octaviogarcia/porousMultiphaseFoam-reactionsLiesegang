@@ -91,12 +91,12 @@ double lerp(double l,double r,double p){
 	return l*(1-p)+r*p;
 }
 
-double sigmoidAbs_00(double x){
-	x-=0.05;//Corrimiento a la der para que x = 0 -> 0
-	x*=100;
-	const double negOne_to_one = x/(1+fabs(x)); //abs() trabaja con enteros nomas 
-	const double zero_to_one = (negOne_to_one + 1)/2.0;
-	return zero_to_one;
+double sigLin(double x){
+	double y = x;
+	y += 0.005;
+	y *= (0.8/0.005);
+	y += 0.1;
+	return (x < -0.005)*0+(x >= -0.005 && x <= 0)*y+(x > 0)*1;
 }
 
 namespace Foam{
@@ -747,13 +747,7 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 {
 	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
-		// This is literally x > 0? 1 : 0
-        //hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
-		double diff = cField[cell]-csField[cell];
-		double sig = sigmoidAbs_00(cField[cell]-csField[cell]);
-		//Info << "difference " << diff << endl;
-		//Info << "sigmoid " << sig << endl;
-        hIntfield[cell] = (diff < -0.1)*0 + (diff >= -0.1 && diff <= 0.1)*sig + (diff > 0.1)*1;
+        hIntfield[cell] = sigLin(cField[cell]-csField[cell]);
     }
 }
 // ************************************************************************* //
