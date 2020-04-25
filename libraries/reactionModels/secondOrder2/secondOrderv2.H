@@ -157,7 +157,7 @@ private:
 
     dimensionedScalar rho;
 	dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.
-    dimensionedScalar iradius =dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.);      //Maximum distance possible before needing interpolation.
+    //dimensionedScalar iradius =dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.);      //Maximum distance possible before needing interpolation.
 	scalar steepness;
 
     scalar reductionCoef=1.0;

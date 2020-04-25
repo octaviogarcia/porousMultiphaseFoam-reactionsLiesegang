@@ -112,6 +112,11 @@ double sigmoidAbs_00(double x){
 	const double zero_to_one = (negOne_to_one + 1)/2.0;
 	return zero_to_one;
 }
+double linearAprox(double x){
+	x+=0.005;//Corrimiento a la der para que x = 0 -> 0
+	x*=(0.8/0.005);
+	return x+0.1;
+}
 
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
@@ -216,10 +221,10 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			cradius = cradius_value;
 		}
 
-        dimensionedScalar iradius_value = reaction.lookupOrDefault("iradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));     // TODO: this one maybe its better to place in controlDict
-		if(iradius_value.value()!=0.0){
-			iradius = iradius_value;
-		}
+        //dimensionedScalar iradius_value = reaction.lookupOrDefault("iradius",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.));     // TODO: this one maybe its better to place in controlDict
+		//if(iradius_value.value()!=0.0){
+		//	iradius = iradius_value;
+		//}
 		
 		dimensionedScalar steepness_value = reaction.lookupOrDefault("steepness",dimensionedScalar("",dimensionSet(0,0,0,0,0,0,0),0.));
 		if(steepness_value.value() != 0){
@@ -233,7 +238,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 
         Info<<"   rho Loaded for reaction: " << rho.value() << endl;
 	    Info<<"   cradius Loaded for reaction: " << cradius.value() << endl;
-        Info<<"   iradius Loaded for reaction: " << iradius.value() << endl;
+        //Info<<"   iradius Loaded for reaction: " << iradius.value() << endl;
         Info<<"   sigmoid stepness Loaded for reaction: " << steepness << endl;
         Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
@@ -389,157 +394,60 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         binary.ref().field() = 1;
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
         
-        //const double cell_size = Y_[0].mesh().delta().ref()[5].x();     //unused
         const double meter_radius = cradius.value();
-        const double interp_mtrs_radius = iradius.value();
-
-        //const double cell_radius = meter_radius / cell_size;    //unused
-
-       // Info<< endl 
-        //<< "Cell Size " << cell_size << endl        //unused
-        //<< "Meters radius (cradius) " <<  meter_radius << endl
-		//<< "Cell radius " << cell_radius << endl;               //unused
-        //<< "Interp radius " << interp_mtrs_radius << endl; 
-
-        for(int cell=0, /*cellSpatialPos[0]=cellXSizes[0]/2*/; cell < cellXSizes.size() - 1; cell++){
-            double proportion = (cellXSizes[cell]/2)/((cellXSizes[cell]/2)+(cellXSizes[cell+1]/2));
-            iFacesSaturation[cell] = lerp(fieldTargetMass[cell],fieldTargetMass[cell+1],proportion);
-            //cellSpatialPos[cell+1] = cellSpatialPos[cell] + cellXSizes[cell]/2 + cellXSizes[cell+1]/2;
-        }
+        //const double interp_mtrs_radius = iradius.value();
 		
         forAll(fieldTargetMass, cell){
-			#define ALG_NO_SIGMOIDE
-
-			#ifdef ALG_NO_SIGMOIDE
             binary[cell] = fieldTargetMass[cell] < rho.value();
 			bool lsaturation = true;
 		    bool rsaturation = true;
-			
-            double delta=0.5;
-            double dCovered_l, dCovered_r = 0.0;
-            int neighbour = 0;
-            double prop_left_edge, prop_right_edge = 0.0;
-            for(delta = 0.5, dCovered_l = cellXSizes[cell]/2, dCovered_r=cellXSizes[cell]/2;
-                
-                dCovered_r <= meter_radius || dCovered_l <= meter_radius;
+            double dCovered_l = 0.0;
+            double dCovered_r = 0.0;
+            double proportion = 0.0;
+            int delta_r=1;
+            int delta_l=1;
 
-                delta+=0.5, dCovered_l += cellXSizes[max(cell-neighbour,0)]/2, 
-                dCovered_r += cellXSizes[min(cell+neighbour,cellXSizes.size()-1)]/2)
+            for(;
+                delta_r <= (fieldTargetMass.size()-1) - cell && 
+                dCovered_r + cellXSizes[min(cell+delta_r-1, fieldTargetMass.size()-1)]/2 
+                            + cellXSizes[min(cell+delta_r, fieldTargetMass.size()-1)]/2 <= meter_radius;
+                delta_r++
+                )
             {
-                if (dCovered_r <= meter_radius) {
-                    const int rightmostCell =  min(cell+neighbour+1,cellXSizes.size()-1);
-                    const double right = min(cell + delta, fieldTargetMass.size() - 1);
-
-                    double proportion, r_val = 0.0;
-                    double totalInsideCell = 0.0;
-
-                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
-                    if(interp_mtrs_radius != 0.0){
-                        
-                        const double r_flr_2 = delta==floor(delta) ? 
-                                                fieldTargetMass[floor(min(right-0.5, fieldTargetMass.size() - 1))] 
-                                                : fieldTargetMass[floor(right)];
-                        const double r_cl_2 = delta==floor(delta) ? 
-                                                fieldTargetMass[ceil(min(right-0.5, fieldTargetMass.size() - 1))] 
-                                                : fieldTargetMass[ceil(right)];
-
-                        do{
-                            totalInsideCell += interp_mtrs_radius;
-
-                            if(totalInsideCell >= cellXSizes[rightmostCell-1]/2){
-                                break;}
-                            proportion = delta==floor(delta) ? 
-                                        (totalInsideCell + cellXSizes[rightmostCell-2]/2)/((cellXSizes[rightmostCell-2]+cellXSizes[rightmostCell-1])/2)
-                                        : totalInsideCell/((cellXSizes[rightmostCell-1]+cellXSizes[rightmostCell])/2);
-                            r_val = lerp(r_flr_2,r_cl_2,proportion);
-                            rsaturation = rsaturation && (r_val < rho.value());
-
-                        }while (true);
-                    }
-                    ////-^
-
-                    r_val = delta==floor(delta)? fieldTargetMass[right] : iFacesSaturation[floor(right)];
-
-                    rsaturation = rsaturation && (r_val < rho.value());
-                    
-                    if(dCovered_r+cellXSizes[rightmostCell-1]/2 > meter_radius
-                        || (dCovered_r+cellXSizes[rightmostCell]/2 > meter_radius
-                            && delta!=floor(delta)) 
-                        )
-                    {
-                        const double diff = meter_radius-dCovered_r;
-                        const double quantOfTotal = (delta!=floor(delta)) ? 
-                                                    diff + cellXSizes[rightmostCell-1]/2 
-                                                    : diff;
-                        prop_right_edge = quantOfTotal/(cellXSizes[rightmostCell-1]/2 + cellXSizes[rightmostCell]/2);
-                        
-                        const double val = lerp(fieldTargetMass[rightmostCell-1]
-                                                ,fieldTargetMass[rightmostCell]
-                                                ,prop_right_edge);
-                        rsaturation = rsaturation && (val < rho.value());
-                    }
-                }
-                if (dCovered_l <= meter_radius) {
-                    const int leftmostCell =  max(cell-neighbour-1,0);
-                    const double left = max(cell - delta,0);
-                    
-                    double proportion, l_val = 0.0;
-                    double totalInsideCell = 0.0;
-
-                    ////-v  support for mesh cells with 400 cells (harmless when interp_mtrs_radius not specified)
-                    if(interp_mtrs_radius != 0.0){
-
-                        const double l_flr_2 = delta==floor(delta) ? 
-                                                fieldTargetMass[floor(max(left+0.5, 0))] 
-                                                : fieldTargetMass[floor(left)];
-                        const double l_cl_2 = delta==floor(delta) ? 
-                                                fieldTargetMass[ceil(max(left+0.5, 0))] 
-                                                : fieldTargetMass[ceil(left)];
-
-                        do{
-                            totalInsideCell += interp_mtrs_radius;
-                            if(totalInsideCell >= cellXSizes[leftmostCell+1]/2){
-                                break;}
-                            proportion = delta==floor(delta) ? 
-                                        (totalInsideCell + cellXSizes[leftmostCell+2]/2)/((cellXSizes[leftmostCell+2]+cellXSizes[leftmostCell+1])/2)
-                                        : totalInsideCell/((cellXSizes[leftmostCell+1]+cellXSizes[leftmostCell])/2);
-                            l_val = lerp(l_flr_2,l_cl_2,1.0-proportion);
-                            lsaturation = lsaturation && (l_val < rho.value());
-
-                        }while (true);
-                    }
-                    ////-^
-
-                    l_val = delta==floor(delta)? fieldTargetMass[left] : iFacesSaturation[floor(left)];
-
-                    lsaturation = lsaturation && (l_val < rho.value());
-
-                    if(dCovered_l+cellXSizes[leftmostCell+1]/2 > meter_radius
-                        || (dCovered_l+cellXSizes[leftmostCell]/2 > meter_radius
-                            && delta!=floor(delta)) 
-                        )
-                    {
-                        const double diff = meter_radius-dCovered_l;
-                        const double quantOfTotal = (delta!=floor(delta)) ? 
-                                                    cellXSizes[leftmostCell]/2 - diff 
-                                                    : cellXSizes[leftmostCell+1]/2 - diff + cellXSizes[leftmostCell]/2;
-                        prop_left_edge = quantOfTotal/(cellXSizes[leftmostCell+1]/2 + cellXSizes[leftmostCell]/2);
-
-                        const double val = lerp(fieldTargetMass[leftmostCell]
-                                                ,fieldTargetMass[leftmostCell+1]
-                                                ,prop_left_edge);
-                        lsaturation = lsaturation && (val < rho.value());
-                    }
-                }
-                if (delta!=floor(delta)){   //the cell from which the size is added is changed half of the time
-                    neighbour++;
-                }
+                int position = min(cell+delta_r,cellXSizes.size()-1);
+                dCovered_r += cellXSizes[position]/2 + cellXSizes[position-1]/2;
+                rsaturation = rsaturation && (fieldTargetMass[position] < rho.value());
             }
+            const double right_first = min(cell + delta_r - 1, fieldTargetMass.size() - 1);
+            const double right_second = min(cell + delta_r, fieldTargetMass.size() - 1);
+            double diff = meter_radius-dCovered_r;
+            proportion = diff/(cellXSizes[right_first]/2 + cellXSizes[right_second]/2);
+            double val = right_first==right_second ? 
+                            fieldTargetMass[right_first] 
+                            : lerp(fieldTargetMass[right_first], fieldTargetMass[right_second] ,proportion);
+            rsaturation = rsaturation && (val < rho.value());
 
-			cs[cell] *= lsaturation*rsaturation;
-			
-            #endif
+            for(;
+                delta_l <= cell && 
+                dCovered_l+cellXSizes[max(cell-delta_l+1,0)]/2
+                            +cellXSizes[max(cell-delta_l,0)]/2 <= meter_radius;
+                delta_l++
+                )
+            {
+                int position = max(cell-delta_l,0);
+                dCovered_l += cellXSizes[position]/2 + cellXSizes[position+1]/2;
+                lsaturation = lsaturation && (fieldTargetMass[position] < rho.value());
+            }
+            const double left_first = max(cell - delta_l,0);
+            const double left_second = max(cell - delta_l + 1,0);
+            diff = meter_radius-dCovered_l;
+            proportion = diff/(cellXSizes[left_first]/2 + cellXSizes[left_second]/2);
+            val = left_first==left_second ? 
+                    fieldTargetMass[left_second] 
+                    : lerp(fieldTargetMass[left_first] ,fieldTargetMass[left_second] ,1.0-proportion);
+            lsaturation = lsaturation && (val < rho.value());
 
+            cs[cell] *= lsaturation*rsaturation;
         }
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
@@ -804,8 +712,15 @@ void Foam::reactionModels::secondOrderv2::heaviside2InternalField
 	auto& hIntfield = heaviField.ref();
     forAll(cField,cell){
 		// This is literally x > 0? 1 : 0
-        hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+        //hIntfield[cell]=Foam::pos(cField[cell]-csField[cell]);
+        double diff = cField[cell]-csField[cell];
+		//double sig = sigmoidAbs_00(cField[cell]-csField[cell]);
+        double sig = linearAprox(cField[cell]-csField[cell]);
+		//Info << "difference " << diff << endl;
+		//Info << "sigmoid " << sig << endl;
+        hIntfield[cell] = (diff < -0.005)*0 + (diff >= -0.005 && diff <= 0)*sig + (diff > 0)*1;
     }
+
 }
 
 void Foam::reactionModels::secondOrderv2::setCellXSizes(
