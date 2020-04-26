@@ -46,8 +46,8 @@ Author
 
 #include "loggerLevels.H"
 const int LOG_LEVEL = 1;
-loggerLevel<1> InfoL1;
-loggerLevel<2> InfoL2;
+LoggerLevel<1> InfoL1;
+LoggerLevel<2> InfoL2;
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

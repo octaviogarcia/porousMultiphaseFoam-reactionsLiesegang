@@ -43,8 +43,8 @@ Developers
 
 #include "loggerLevels.H"
 const int LOG_LEVEL = 1;
-loggerLevel<1> InfoL1;
-loggerLevel<2> InfoL2;
+LoggerLevel<1> InfoL1;
+LoggerLevel<2> InfoL2;
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
@@ -54,7 +54,7 @@ namespace reactionModels
 {
 
 /*---------------------------------------------------------------------------*\
-                   Class fristOrder Declaration
+                   Class secondOrderv2 Declaration
 \*---------------------------------------------------------------------------*/
 
 class secondOrderv2
@@ -85,7 +85,7 @@ public:
 
     void postTransport() override;
 
-	Foam::volScalarField* getCells() override;
+	Foam::volScalarField* getCellsSizesX() override;
 private:
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -157,7 +157,7 @@ private:
 
     volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
-    volScalarField cellSizes;
+    volScalarField cellsSizesX;
 
     dimensionedScalar rho;
     dimensionedScalar cradius;

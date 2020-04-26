@@ -4,10 +4,10 @@
 extern const int LOG_LEVEL;
 
 template<unsigned int N>
-struct loggerLevel{};
+struct LoggerLevel{};
 
 template<unsigned int N,typename T>
-const loggerLevel<N>& operator<<(const loggerLevel<N>& chain, const T& var){
+const LoggerLevel<N>& operator<<(const LoggerLevel<N>& chain, const T& var){
 	if(N <= LOG_LEVEL) Foam::Info << var;
 	return chain;
 }

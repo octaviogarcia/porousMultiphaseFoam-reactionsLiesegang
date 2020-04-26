@@ -137,9 +137,9 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 		dimensionedScalar("",dimless,1)
     ),
     heaviField(binary),
-	cellSizes(
+	cellsSizesX(
         IOobject(
-            word("cellSizes"),
+            word("cellsSizesX"),
             Y_[0].mesh().time().timeName(),
             Y_[0].mesh(),
             IOobject::NO_READ,
@@ -161,12 +161,12 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     auto meshSize = Y_[0].mesh().delta().ref().size();
     for(int i=0; i<=meshSize; i++){
         if(i==0){
-			cellSizes[i] *= ((Cr[i]) & iu);
+			cellsSizesX[i] *= ((Cr[i]) & iu);
         }
         else if(i<meshSize){
-			cellSizes[i] *= ((Cfr[i] - Cr[i]) & iu);
+			cellsSizesX[i] *= ((Cfr[i] - Cr[i]) & iu);
         }else{
-			cellSizes[i] *= ((Cr[i] - Cfr[i-1]) & iu);
+			cellsSizesX[i] *= ((Cr[i] - Cfr[i-1]) & iu);
         }
     }
 	
@@ -413,7 +413,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 		}
 		forAll(fieldTargetMass, cell){
 			binary[cell] = fieldTargetMass[cell] < rho.value();
-			//cs[cell] = sampleFieldNNAbs(getPercent(cell)*(samples-1),cs_sample);
 			cs[cell] = sampleFieldLinAbs(getPercent(cell)*(samples-1),cs_sample);
 		}
         auto cField = Y_[influencedSpecieHS].internalField();
@@ -440,20 +439,20 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 }
 
 double Foam::reactionModels::secondOrderv2::getCell(double p){
-	const auto& c = cellSizes.internalField();
+	const auto& c = cellsSizesX.internalField();
     const double r = c[5]/c[4];//@SPEED: Precalculable
     double val = 1 - ((length*p)/c[0])*(1 - r);
     //@SPEED log(r) es precalculable
     return log(val)/log(r);
 }
 double Foam::reactionModels::secondOrderv2::getPercent(double cell){
-	const auto& c = cellSizes.internalField();
+	const auto& c = cellsSizesX.internalField();
     const double r = c[5]/c[4];
 	double val = (1 - pow(r,cell))/(1 - r);
 	return (c[0]/length)*val;
 }
-Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCells(){
-	return &cellSizes;
+Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCellsSizesX(){
+	return &cellsSizesX;
 }
 
 Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTerm

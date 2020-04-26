@@ -111,7 +111,7 @@
 
                 InfoL2 << setprecision(15);
 
-                const auto& cellSizes = (*reactionModel->getCells());
+                const auto& cellSizes = (*reactionModel->getCellsSizesX());
 			    auto hsq = (cellSizes * cellSizes).ref();
                 auto k = kValueTauD;
                 scalar tempTauD = 0.0;
