@@ -75,6 +75,7 @@ void checkDims
 } // End namespace Foam
 
 // * * * * * * * * * * * * * * * * AUX  * * * * * * * * * * * * * * //
+
 template<class Type, template<class> class PatchField, class GeoMesh>
 void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 	const auto& field = dfield.internalField();
@@ -82,9 +83,9 @@ void printField(const Foam::GeometricField<Type,PatchField,GeoMesh>& dfield){
 		if(index % 100 == 0){
 	        Foam::Info << Foam::endl;
 		}
-		Foam::Info << " " << field[index];
+		InfoL1 << " " << field[index];
 	}
-	Foam::Info << Foam::endl;
+	InfoL1 << Foam::endl;
 }
 
 double lerp(double l,double r,double p){
@@ -109,18 +110,8 @@ namespace Foam{
 		const double proportion = pos - pos_flr;
 		return lerp(mass_flr,mass_cl,proportion);
 	}
-	double sampleFieldNNAbs(double cell,const List<double>& ifield){
-		const double pos = min(max(cell,0),ifield.size() - 1);//clampeo el x
-		const double pos_flr = floor(pos);
-		const double pos_cl = ceil(pos);
-		const double mass_flr = ifield[pos_flr];
-		const double mass_cl = ifield[pos_cl];
-		const double distance_flr = pos - pos_flr;
-		const double distance_cl = pos_cl - pos;
-		const double mass = (distance_flr <= distance_cl)*mass_flr + (distance_flr > distance_cl)*mass_cl;
-		return mass;
-	}
 }
+
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
 Foam::reactionModels::secondOrderv2::secondOrderv2
@@ -162,9 +153,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     m_per_sample(0.00005),//@HACK leer de un archivo
 	//m_per_sample(0.0001),
     length(0.08),//@HACK leer del blockMeshDict
-    cs_sample(int(ceil(length/m_per_sample)),0.0),
-	getCell_mem(int(1010),-1.0),
-	getPercent_mem(int(ceil(length/m_per_sample)),-1.0)
+    cs_sample(int(ceil(length/m_per_sample)),0.0)
 {
 	auto Cr = Y_[0].mesh().C();
 	auto Cfr = Y_[0].mesh().Cf();
@@ -202,14 +191,14 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     //- Read list of reactions
     auto reactionList = reactions.subOrEmptyDict("reactions");
 
-    Info<< "Reading reactions..." << endl << endl;
+    InfoL1 << "Reading reactions..." << endl << endl;
     
     forAllConstIter(dictionary, reactionList, iter)
     {
         const auto& reactionName = iter().keyword();
         const auto& reaction = reactionList.subDict(reactionName);
 
-        Info<< "Reaction " << reactionName << endl
+        InfoL1<< "Reaction " << reactionName << endl
             << "{" << endl
             << "    " << reaction.lookupType<string>("reaction") << endl;
         
@@ -252,13 +241,13 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			reductionCoef = redCoef_value.value();
 		}
 
-        Info<<"   rho Loaded for reaction: " << rho.value() << endl;
-        Info<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
+        InfoL1<<"   rho Loaded for reaction: " << rho.value() << endl;
+        InfoL1<<"   reduction coeff Loaded for reaction: " << reductionCoef << endl;
 
         auto order = addReaction(lhs, rhs, kf, liesegang.value());
 
-        Info<< "    [->]: kf " << kf.value() << ", order " << order << endl;
-        Info<< "    Liesegang: " << liesegang << endl;
+        InfoL1<< "    [->]: kf " << kf.value() << ", order " << order << endl;
+        InfoL1<< "    Liesegang: " << liesegang << endl;
 
         dimensionedScalar cs_value = reaction.lookupOrDefault("cs",dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.));
         
@@ -266,20 +255,20 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 			cs_scalar = cs_value;
         }
 
-        Info<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
+        InfoL1<< "    cs Loaded for reaction: " << cs_scalar.value() << endl; 
                 
         if(reaction.found("kb")) 
         {
             const dimensionedScalar& kb = reaction.lookup("kb");
             order = addReaction(rhs, lhs, kb, liesegang.value()); //- Add the inverse reaction
-            Info<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
+            InfoL1<< "    [<-]: kb " << kb.value() << ", order " << order << endl;
         }
 
-        Info<< "}" << endl << endl;
+        InfoL1<< "}" << endl << endl;
 
-        Info<< "Loaded Reaction: " << endl;     //TODO: delete this
+        InfoL1<< "Loaded Reaction: " << endl;     //TODO: delete this
         OStringStream reactionOSStream;         //<-|
-        Info<< specieCoeffs::reactionStr(       //  |
+        InfoL1<< specieCoeffs::reactionStr(       //  |
                 reactionOSStream                //  |
                 ,composition.species()          //  |
                 ,lhs                            //  |
@@ -289,7 +278,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     //- If no reactions list found, read any reaction rate constants given with each species
     if(!reactions.found("reactions"))
     {
-        Info<< "===> No reactions found. Reading rate constants directly..." << endl;
+        InfoL1<< "===> No reactions found. Reading rate constants directly..." << endl;
 
         forAll(Y_, speciesi)
         {
@@ -367,7 +356,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             }
         }
 
-        Info<< "Finished reading rate constants directly." << endl;
+        InfoL1<< "Finished reading rate constants directly." << endl;
     }
 }
 
@@ -380,7 +369,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         return;
     }
 	
-    //Info<< "rho value:" << rho.value() << endl;
+    InfoL2 << "rho value:" << rho.value() << endl;
 
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
@@ -451,61 +440,17 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 }
 
 double Foam::reactionModels::secondOrderv2::getCell(double p){
-	#if 0
-	p = max(min(p,1),0);
-	int slot = round(p*1000);
-	//@HACK aumentar precision?, solo 1 digito por ahora..
-	/*if(getCell_mem[slot]>=0){
-		return getCell_mem[slot];
-	}*/
-    const auto& c = cellSizes.internalField();
-	double currp = 0;
-	int i = 0;
-	for(;i<c.size();i++){
-		double val = c[i]/length;
-		if((currp+val) >= p) break;
-		currp += val;
-	}
-	if(i == c.size()) return (c.size() - 1);
-	double length_over_cell = (p - currp)*length;
-	double ret = i + length_over_cell / c[i];
-	getCell_mem[slot] = ret;
-	return ret;
-	#else
 	const auto& c = cellSizes.internalField();
     const double r = c[5]/c[4];//@SPEED: Precalculable
     double val = 1 - ((length*p)/c[0])*(1 - r);
     //@SPEED log(r) es precalculable
     return log(val)/log(r);
-	#endif
 }
 double Foam::reactionModels::secondOrderv2::getPercent(double cell){
-	#if 0
-	//@HACK no funcionaria bien con valores intermedios
-	//Aunque seria raro que se llame asi
-	int slot = round(cell);
-	
-	if(getPercent_mem[slot]>=0){
-		return getPercent_mem[slot];
-	}
-	
-    const auto& c = cellSizes.internalField();
-	double currlength = 0;
-	int i = 0;
-	for(;i<c.size();i++){
-		if(i > cell) break;
-		currlength += c[i];
-	}
-	double proportion = cell - (i-1);
-	double ret = (currlength + proportion * c[i])/length;
-	getPercent_mem[slot] = ret;
-	return ret;
-	#else
 	const auto& c = cellSizes.internalField();
     const double r = c[5]/c[4];
 	double val = (1 - pow(r,cell))/(1 - r);
 	return (c[0]/length)*val;
-	#endif
 }
 Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCells(){
 	return &cellSizes;

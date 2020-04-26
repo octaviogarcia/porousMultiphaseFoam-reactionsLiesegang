@@ -44,6 +44,11 @@ Author
 #include "EulerD2dt2Scheme.H"
 #include "IOmanip.H"
 
+#include "loggerLevels.H"
+const int LOG_LEVEL = 1;
+loggerLevel<1> InfoL1;
+loggerLevel<2> InfoL2;
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 int main(int argc, char *argv[])
@@ -79,12 +84,12 @@ int main(int argc, char *argv[])
 
         do{
             if(redoTimeStep){
-                //Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-                //<< "  ClockTime = " << runTime.elapsedClockTime() << " s"
-                //<< nl << endl;
+                InfoL2<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+                << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+                << nl << endl;
             }
 
-            //Info << "Time = " << runTime.timeName() << nl << endl;
+            InfoL2 << "Time = " << runTime.timeName() << nl << endl;
             #include "solveReactiveTransport.H"
 
         } while (redoTimeStep);
@@ -93,16 +98,16 @@ int main(int argc, char *argv[])
 
         #include "eventWrite.H"
 
-        //Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
-        //    << "  ClockTime = " << runTime.elapsedClockTime() << " s"
-        //    << nl << endl;
+        InfoL2<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+            << "  ClockTime = " << runTime.elapsedClockTime() << " s"
+            << nl << endl;
         
     }
 	
-	Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
+	InfoL1<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
 	    << "  ClockTime = " << runTime.elapsedClockTime() << " s"
 	    << nl << endl;
-    Info<< "End\n" << endl;
+    InfoL1<< "End\n" << endl;
 
     return 0;
 }

@@ -41,6 +41,11 @@ Developers
 #include "reactionModel.H"
 #include "specieCoeffs.H"
 
+#include "loggerLevels.H"
+const int LOG_LEVEL = 1;
+loggerLevel<1> InfoL1;
+loggerLevel<2> InfoL2;
+
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 namespace Foam
@@ -163,9 +168,6 @@ private:
 	double m_per_sample;//@HACK should be dimensionedScalar?
 	double length;//@HACK should be dimensionedScalar?
 	List<double> cs_sample;
-	
-	List<double> getCell_mem;
-	List<double> getPercent_mem;
 };
 
 
