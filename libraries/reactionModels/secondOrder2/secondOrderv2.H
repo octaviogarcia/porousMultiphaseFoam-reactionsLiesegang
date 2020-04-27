@@ -136,9 +136,6 @@ private:
 		const DimensionedField<scalar, Foam::volMesh>& csField
 	);
 	
-    double getCell(double p);
-    double getPercent(double cell);
-
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
     List<List<dimensionedScalar>> k1_; // First-order rate constants
@@ -158,16 +155,11 @@ private:
     volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
     volScalarField cellsSizesX;
-
+	
     dimensionedScalar rho;
-    dimensionedScalar cradius;
-    scalar reductionCoef=1.0;
+    dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.
     dimensionedScalar cs_scalar = dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
-    scalar prevMaxC = 0.0;
     label influencedSpecieHS;
-	double m_per_sample;//@HACK should be dimensionedScalar?
-	double length;//@HACK should be dimensionedScalar?
-	List<double> cs_sample;
 };
 
 
