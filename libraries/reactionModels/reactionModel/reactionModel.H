@@ -112,9 +112,7 @@ public:
     reactionModel(const reactionModel&) = delete;
     void operator=(const reactionModel&) = delete;
 
-    virtual Foam::volScalarField* getCellsSizesX(){ return nullptr; }
-    virtual Foam::volScalarField* getCellsSizesY(){ return nullptr; } 
-    virtual Foam::volScalarField* getCellsSizesZ(){ return nullptr; } 
+    virtual Foam::volVectorField* getCellsSizes(){ return nullptr; }
 protected:
 
     // Constructors

@@ -85,8 +85,11 @@ public:
 
     void postTransport() override;
 
-	Foam::volScalarField* getCellsSizesX() override;
+    volVectorField* getCellsSizes() override;
 private:
+
+    void calcCellSizes();
+    void calcCellsInRadius();
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
     (
@@ -135,7 +138,7 @@ private:
 		const DimensionedField<scalar, Foam::volMesh>& cField,
 		const DimensionedField<scalar, Foam::volMesh>& csField
 	);
-	
+		
     const PtrList<volScalarField>& Y_;
     List<dimensionedScalar> k0_; // Zeroth-order rate constants
     List<List<dimensionedScalar>> k1_; // First-order rate constants
@@ -146,6 +149,8 @@ private:
 
     bool massConservative_ = false;
     PtrList<fvScalarMatrix> massConservativeReactionTerms_;
+    
+    const fvMesh& mesh;
 
     label influencedSpecieK1;
     label influencedSpecieK2;
@@ -154,12 +159,13 @@ private:
 
     volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
-    volScalarField cellsSizesX;
+    volVectorField cellsSizes;
 	
     dimensionedScalar rho;
     dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.
     dimensionedScalar cs_scalar = dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.);
     label influencedSpecieHS;
+    List<List<label>> inRadius;
 };
 
 

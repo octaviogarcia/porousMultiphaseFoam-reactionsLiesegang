@@ -113,46 +113,34 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     k2_(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
     sk1(Y_.size(), List<dimensionedScalar>(Y_.size())),
     sk2(Y_.size(), List<List<dimensionedScalar>>(Y_.size(), List<dimensionedScalar>(Y_.size()))),
+    mesh(Y_[0].mesh()),
     binary(
         IOobject(
             word("binary"),
-            Y_[0].mesh().time().timeName(), Y_[0].mesh(),
+            mesh.time().timeName(), Y_[0].mesh(),
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        Y_[0].mesh(),
+        mesh,
         dimensionedScalar("",dimless,1)
     ),
     heaviField(binary),
-	cellsSizesX(
+	cellsSizes(
         IOobject(
-            word("cellsSizesX"),
-            Y_[0].mesh().time().timeName(),
-            Y_[0].mesh(),
+            word("cellsSizes"),
+            mesh.time().timeName(),
+            mesh,
             IOobject::NO_READ,
             IOobject::NO_WRITE
         ),
-        Y_[0].mesh(),
-        dimensionedScalar("",dimless,2.0)
+        mesh,
+        vector(0.0,0.0,0.0)
     ),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
-    cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015))
+    cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
+    inRadius(mesh.C().size(),List<label>())
 {
-    auto Cr = Y_[0].mesh().C();
-    auto Cfr = Y_[0].mesh().Cf();
-    vector iu(1, 0, 0);
-    auto meshSize = Y_[0].mesh().delta().ref().size();
-    for(int i=0; i<=meshSize; i++){
-        if(i==0){
-            cellsSizesX[i] *= ((Cr[i]) & iu);
-        }
-        else if(i<meshSize){
-            cellsSizesX[i] *= ((Cfr[i] - Cr[i]) & iu);
-        }else{
-            cellsSizesX[i] *= ((Cr[i] - Cfr[i-1]) & iu);
-        }
-    }
-	
+    calcCellSizes();
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -251,6 +239,8 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
                 ,lhs                            //  |
                 ,rhs) << endl << endl;          //<-| 
     }
+	
+    calcCellsInRadius();
 
     //- If no reactions list found, read any reaction rate constants given with each species
     if(!reactions.found("reactions"))
@@ -370,59 +360,14 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         );
 
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
-        const double meter_radius = cradius.value();
-		
         forAll(fieldTargetMass, cell){
             binary[cell] = fieldTargetMass[cell] < rho.value();
-			bool lsaturation = true;
-            bool rsaturation = true;
-            double dCovered_l = 0.0;
-            double dCovered_r = 0.0;
-            double proportion = 0.0;
-            int delta_r=1;
-            int delta_l=1;
-
-            for(;
-                delta_r <= (fieldTargetMass.size()-1) - cell && 
-                dCovered_r + cellsSizesX[min(cell+delta_r-1, fieldTargetMass.size()-1)]/2 
-                            + cellsSizesX[min(cell+delta_r, fieldTargetMass.size()-1)]/2 <= meter_radius;
-                delta_r++
-                )
-            {
-                int position = min(cell+delta_r,cellsSizesX.size()-1);
-                dCovered_r += cellsSizesX[position]/2 + cellsSizesX[position-1]/2;
-                rsaturation = rsaturation && (fieldTargetMass[position] < rho.value());
+            bool saturation = true;
+            forAll(inRadius[cell],idx){
+                label target = inRadius[cell][idx];
+                saturation = saturation && (fieldTargetMass[target] < rho.value());
             }
-            const double right_first = min(cell + delta_r - 1, fieldTargetMass.size() - 1);
-            const double right_second = min(cell + delta_r, fieldTargetMass.size() - 1);
-            double diff = meter_radius-dCovered_r;
-            proportion = diff/(cellsSizesX[right_first]/2 + cellsSizesX[right_second]/2);
-            double val = right_first == right_second ? 
-                           fieldTargetMass[right_first] 
-                         : lerp(fieldTargetMass[right_first], fieldTargetMass[right_second] ,proportion);
-            rsaturation = rsaturation && (val < rho.value());
-
-            for(;
-                delta_l <= cell && 
-                dCovered_l+cellsSizesX[max(cell-delta_l+1,0)]/2
-                            +cellsSizesX[max(cell-delta_l,0)]/2 <= meter_radius;
-                delta_l++
-                )
-            {
-                int position = max(cell-delta_l,0);
-                dCovered_l += cellsSizesX[position]/2 + cellsSizesX[position+1]/2;
-                lsaturation = lsaturation && (fieldTargetMass[position] < rho.value());
-            }
-            const double left_first = max(cell - delta_l,0);
-            const double left_second = max(cell - delta_l + 1,0);
-            diff = meter_radius-dCovered_l;
-            proportion = diff/(cellsSizesX[left_first]/2 + cellsSizesX[left_second]/2);
-            val = left_first == left_second ? 
-                    fieldTargetMass[left_second] 
-                    : lerp(fieldTargetMass[left_first] ,fieldTargetMass[left_second] ,1.0-proportion);
-            lsaturation = lsaturation && (val < rho.value());
-
-            cs[cell] *= lsaturation*rsaturation;
+            cs[cell] *= saturation;
         }
         auto cField = Y_[influencedSpecieHS].internalField();
         heaviside2InternalField(cField, cs.ref());
@@ -447,8 +392,68 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
     }
 }
 
-Foam::volScalarField* Foam::reactionModels::secondOrderv2::getCellsSizesX(){
-	return &cellsSizesX;
+void Foam::reactionModels::secondOrderv2::calcCellSizes(){
+    auto Cr = mesh.C();
+    auto Cfr = mesh.Cf();
+    auto meshSize = mesh.delta().ref().size();
+    for(int i = 0;i <= meshSize;i++){
+        if(i==0){
+            cellsSizes[i] = 2 * Cr[i];
+        }
+        else if(i<meshSize){
+            cellsSizes[i] = 2 * (Cfr[i] - Cr[i]);
+        }else{
+            cellsSizes[i] = 2 * (Cr[i] - Cfr[i-1]);
+        }
+    }
+}
+
+namespace Foam{
+    static label find(const List<label>& list,label elem){
+        forAll(list,index){
+            if(list[index] == elem){
+                return index;
+            }
+        }
+        return -1;
+    }
+}
+
+void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
+    const auto& centers_pos = mesh.C();
+    const auto& owner = mesh.owner();
+    const auto& neighbour = mesh.neighbour();
+    List<List<label>> adjacency(centers_pos.size(),List<label>());
+    forAll(owner,faceid){
+        const label from = owner[faceid];
+        const label to = neighbour[faceid];
+        if(mag(centers_pos[from]-centers_pos[to])<= cradius.value()){
+            adjacency[from].append(to);
+            adjacency[to].append(from);
+        }
+    }
+    FIFOStack<label> queue;//Linked List cause List doesnt have pop
+    forAll(centers_pos,center){
+        queue.clear();
+        queue.push(center);//BFS 
+        while(queue.size() > 0){
+            label to_expand = queue.pop();
+            forAll(adjacency[to_expand],adjidx){
+                label adj = adjacency[to_expand][adjidx];
+                if(adj != center &&
+                   find(inRadius[center],adj) == -1 &&
+                   mag(centers_pos[center]-centers_pos[adj]) <= cradius.value())
+                {
+                    inRadius[center].append(adj);
+                    queue.push(adj);
+                }
+            }
+        }
+    }
+}
+
+Foam::volVectorField* Foam::reactionModels::secondOrderv2::getCellsSizes(){
+	return &cellsSizes;
 }
 
 Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTerm
