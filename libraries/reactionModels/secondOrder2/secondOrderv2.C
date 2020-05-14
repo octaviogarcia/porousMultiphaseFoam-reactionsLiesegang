@@ -393,14 +393,14 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 }
 
 void Foam::reactionModels::secondOrderv2::calcCellSizes(){
-    auto Cr = mesh.C();
-    auto Cfr = mesh.Cf();
-    auto meshSize = mesh.delta().ref().size();
-    for(int i = 0;i <= meshSize;i++){
+    const auto& Cr = mesh.C();
+    const auto& Cfr = mesh.Cf();
+    auto size = cellsSizes.size();
+    forAll(cellsSizes,i){
         if(i==0){
             cellsSizes[i] = 2 * Cr[i];
         }
-        else if(i<meshSize){
+        else if(i<size){
             cellsSizes[i] = 2 * (Cfr[i] - Cr[i]);
         }else{
             cellsSizes[i] = 2 * (Cr[i] - Cfr[i-1]);
