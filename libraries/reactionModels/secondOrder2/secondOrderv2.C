@@ -395,16 +395,32 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 void Foam::reactionModels::secondOrderv2::calcCellSizes(){
     const auto& Cr = mesh.C();
     const auto& Cfr = mesh.Cf();
-    auto size = cellsSizes.size();
-    forAll(cellsSizes,i){
-        if(i==0){
-            cellsSizes[i] = 2 * Cr[i];
+
+    auto totalsize = cellsSizes.size();
+    auto rowAmount = 2;                        //number of rows can be parametrized or obtained from somewhere probably but i don't know how
+    auto rowSize = totalsize/rowAmount;     
+
+    forAll(cellsSizes,i){                   // if there isn't Y expansion neither assymetrical cells can be changed to loop only over first row
+        if(i<rowSize){
+            if(i==0){
+                cellsSizes[i].x() = 2 * Cr[i].x();
+                cellsSizes[i].y() = 2 * Cr[i].y();
+            }
+            else if(i<rowSize-1){
+                cellsSizes[i].x() = 2 * (Cfr[2*i].x() - Cr[i].x());             //2*i / 2*i+1 can be generalized to something probably, but i believe it 
+                                                                                // will work the same with more than 2 rows, not sure on asymmetrical cells
+                cellsSizes[i].y() = 2 * (Cfr[2*i+1].y() - Cr[i].y());
+            }else{
+                cellsSizes[i].x() = 2 * (Cr[i].x() - Cfr[2*(i-1)].x());         //2*i can be generalized to something probably, but i believe it 
+                                                                                // will work the same with more than 2 rows, not sure on asymmetrical cells
+                cellsSizes[i].y() = 2 * (Cr[i].y() - Cfr[i-rowSize].y());       //only valid fot rows of equal lenght (symmetrical)
+            }
+            for(int row=1; row<=rowAmount-1; row++){
+                cellsSizes[i+rowSize*row] = cellsSizes[i];                      //because there isn't Y expansion.
+            }
         }
-        else if(i<size){
-            cellsSizes[i] = 2 * (Cfr[i] - Cr[i]);
-        }else{
-            cellsSizes[i] = 2 * (Cr[i] - Cfr[i-1]);
-        }
+        //InfoL1<< "Cell: " << i << " size_x: " << cellsSizes[i].x() << endl;
+        //InfoL1<< "Cell: " << i << " size_y: " << cellsSizes[i].y() << endl;
     }
 }
 
