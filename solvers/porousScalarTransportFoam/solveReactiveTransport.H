@@ -93,11 +93,16 @@
             auto Deff = composition.Deff(speciesi)[5].xx();
 
             if(Deff != 0.0){
-                const auto& Cref = composition.Y(speciesi);
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
-                auto magGradC = mag(fvc::grad(Cref)).ref();
-                volScalarField vectorTauD( //@SPEED: initialize once and reutilize?
+                const auto& Cref = composition.Y(speciesi);
+                auto gradC = fvc::grad(Cref).ref();
+                auto k = kValueTauD;
+                const auto& cellsSizes = (*reactionModel->getCellsSizes());
+                scalar tempTauD = GREAT;
+                scalar minTauDXY;
+
+                volVectorField vectorTauD( //@SPEED: initialize once and reutilize?
                     IOobject(
                         word("vectorTauD"),
                         Cref.mesh().time().timeName(),
@@ -106,26 +111,23 @@
                         IOobject::NO_WRITE
                     ),
                     Cref.mesh(), 
-                    dimensionedScalar("",dimless,0.)
+                    vector((k*maxCref)/Deff,(k*maxCref)/Deff,0.0)
                 );
 
                 InfoL2 << setprecision(15);
 
-                auto hsq = magSqr(*reactionModel->getCellsSizes());
-                auto k = kValueTauD;
-                scalar tempTauD = 0.0;
-
-                vectorTauD = k*(hsq/Deff);
-                forAll(magGradC, cell){
-                    if(magGradC[cell]>0.0){
-                        vectorTauD[cell] = vectorTauD[cell]*(maxCref/magGradC[cell]);
-                    }else{
-                        vectorTauD[cell] = GREAT;
-                    }
+                forAll(gradC, cell){
+                    vectorTauD[cell].x() = fabs(gradC[cell].x())>1.0e-190 ? ( (vectorTauD[cell].x() * sqr(cellsSizes[cell].x()) )/ fabs(gradC[cell].x())) : GREAT;
+                    vectorTauD[cell].y() = fabs(gradC[cell].y())>1.0e-190 ? ( (vectorTauD[cell].y() * sqr(cellsSizes[cell].y()) )/ fabs(gradC[cell].y())) : GREAT;
+                                                                // the check on 1.0e-190 is due to the fact that before most times magGradC was 0 because the components where too small
+                                                                // and it makes some roundup. Now that's not the case, so the calculation of vectorTauD can give really big numbers that crash the simulation.
+                    
+                    minTauDXY = min(vectorTauD[cell].x(), vectorTauD[cell].y()); 
+                    tempTauD = min(minTauDXY, tempTauD); 
                 }
-                tempTauD = gMin(vectorTauD); 
+
                 InfoL2<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
-                tauD = tempTauD < tauD ? tempTauD : tauD;
+                tauD = min(tempTauD, tauD);       // between species looks for the smallest
             }
             else{
                 scalar newDeltaT = runTime.deltaTValue();
