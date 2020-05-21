@@ -121,7 +121,6 @@
                     vectorTauD[cell].y() = fabs(gradC[cell].y())>1.0e-190 ? ( (vectorTauD[cell].y() * sqr(cellsSizes[cell].y()) )/ fabs(gradC[cell].y())) : GREAT;
                                                                 // the check on 1.0e-190 is due to the fact that before most times magGradC was 0 because the components where too small
                                                                 // and it makes some roundup. Now that's not the case, so the calculation of vectorTauD can give really big numbers that crash the simulation.
-                    
                     minTauDXY = min(vectorTauD[cell].x(), vectorTauD[cell].y()); 
                     tempTauD = min(minTauDXY, tempTauD); 
                 }
@@ -135,7 +134,7 @@
                 const auto& Dprev = composition.Y(speciesi).oldTime();
 
                 auto variation = max(Dact-Dprev).value();
-
+                
                 InfoL2 << endl << "tauD selected: " << tauD << endl;
                 InfoL2 << "D Variation: " << variation << endl;
 
