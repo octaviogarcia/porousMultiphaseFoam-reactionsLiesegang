@@ -86,9 +86,12 @@ public:
     void postTransport() override;
 
     volVectorField* getCellsSizes() override;
+    List<List<vector>>* getCellsEdgeVectors() override;
+
 private:
 
     void calcCellSizes();
+    void calcCellEdgesVectors();
     void calcCellsInRadius();
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 
@@ -160,6 +163,7 @@ private:
     volScalarField binary;          //Field with check results on concentration levels (below rho (1) or above or equal (0))
     volScalarField heaviField;      //Field with results of applying Heaviside Step function through Foam::neg() to each cell
     volVectorField cellsSizes;
+    List<List<vector>> cellsEdgeVectors; // First-order rate constants
 	
     dimensionedScalar rho;
     dimensionedScalar cradius;      //Value that indicates the cristalization radius = how many METERS to look around to check rho.
