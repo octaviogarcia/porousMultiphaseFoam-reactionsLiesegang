@@ -88,8 +88,6 @@ public:
 
 private:
 
-    void calcCellSizes();
-    void calcCellEdgesVectors();
     void calcCellsInRadius();
     //- Add reaction with its order obtained from lhs exponents. Returns the order
     label addReaction 

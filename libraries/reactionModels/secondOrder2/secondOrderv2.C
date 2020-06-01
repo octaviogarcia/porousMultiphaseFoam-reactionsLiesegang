@@ -437,14 +437,6 @@ void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
     }
 }
 
-Foam::volVectorField* Foam::reactionModels::secondOrderv2::getCellsSizes(){
-	return &cellsSizes;
-}
-
-Foam::List<Foam::List<Foam::vector>>* Foam::reactionModels::secondOrderv2::getCellsEdgeVectors(){
-	return &cellsEdgeVectors;
-}
-
 Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTerm
 (
     const label speciesi
