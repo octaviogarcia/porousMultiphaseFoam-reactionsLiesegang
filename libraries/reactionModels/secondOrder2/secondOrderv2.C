@@ -141,8 +141,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
     cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
     inRadius(mesh.C().size(),List<label>())
 {
-    calcCellSizes();
-    calcCellEdgesVectors();
+
     //- Set the dimensions of all reaction coefficients
     forAll(Y_, speciesi)
     {
@@ -393,101 +392,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
         }
     }
 }
-
-void Foam::reactionModels::secondOrderv2::calcCellSizes(){          // used in rectangular mesh
-    const auto& Cr = mesh.C();
-    const auto& Cfr = mesh.Cf();
-    auto totalsize = cellsSizes.size();
-
-    labelList cellFaces = mesh.cells()[0];       //labels of cell0's faces
-    const auto& neighbour = mesh.neighbour();
-    int rowAmount=1;
-    while(true){                                        //counts how many cells are above
-        if (mesh.isInternalFace(cellFaces[1])){
-            cellFaces =  mesh.cells()[neighbour[cellFaces[1]]];
-            rowAmount++;
-        }
-        else{ break; }
-    }
-    InfoL1<< "Rows found: " << rowAmount << endl;
-
-    auto rowSize = totalsize/rowAmount;     
-
-    forAll(cellsSizes,i){                       //if there isn't Y expansion neither assymetrical cells can be changed to loop only over first row
-        if(i<rowSize){
-            if(i==0){
-                cellsSizes[i].x() = 2 * Cr[i].x();
-                cellsSizes[i].y() = 2 * Cr[i].y();
-            }
-            else if(i<rowSize-1){
-                cellsSizes[i].x() = 2 * (Cfr[2*i].x() - Cr[i].x());             //2*i / 2*i+1 can be generalized to something probably, but i believe it 
-                                                                                // will work the same with more than 2 rows, not sure on asymmetrical cells
-                cellsSizes[i].y() = 2 * (Cfr[2*i+1].y() - Cr[i].y());
-            }else{
-                cellsSizes[i].x() = 2 * (Cr[i].x() - Cfr[2*(i-1)].x());         //2*i can be generalized to something probably, but i believe it 
-                                                                                //  will work the same with more than 2 rows, not sure on asymmetrical cells
-                cellsSizes[i].y() = 2 * (Cfr[2*i+1].y() - Cr[i].y());           //BUG: twice the value... besides, only valid for rows of equal 
-                                                                                //  lenght (symmetrical) (AND ONLY VALID FOR FIRST ROW & >1 ROWS)
-            }
-            for(int row=1; row<rowAmount; row++){
-                cellsSizes[i+rowSize*row] = cellsSizes[i];                      //because there isn't Y expansion.
-            }
-        }
-    }
-}
-
-void Foam::reactionModels::secondOrderv2::calcCellEdgesVectors(){  
-    const pointField& pp = mesh.points();
-    auto totalsize = cellsEdgeVectors.size();
-    auto bigEdgeVec = edge(0, mesh.cellPoints()[totalsize-1][0]).vec(pp);    //big random edge (POSSIBLE ERROR HERE)
-    edgeList allEdges = mesh.edges();
-
-    forAll(cellsEdgeVectors,celli){                       //if there isn't Y expansion neither assymetrical cells can be changed to loop only over first row
-        
-        cellsEdgeVectors[celli][0] = bigEdgeVec;        
-        labelList cellEdges = mesh.cellEdges()[celli];
-        List<label> groundEdges(0,0);
-        List<label> radialGroundEdges(0,0);
-
-        bool radialEdgesFound = false;
-        forAll(cellEdges, edgeI){
-
-            if(pp[allEdges[cellEdges[edgeI]].start()].z()==0 && pp[allEdges[cellEdges[edgeI]].end()].z()==0 )
-            {
-                if(!radialEdgesFound)
-                {
-                    forAll(groundEdges,egrEdin){
-
-                        if( fabs(allEdges[cellEdges[edgeI]].mag(pp) - allEdges[cellEdges[groundEdges[egrEdin]]].mag(pp)) < 1e-9 ){        
-                                                                                    //we look for the edges of the cell (with z=0) that are "equal" in length (the radial ones) but
-                                                                                    // edge compare doesn't work, so we need to check sizes this way because precision errors,
-                                                                                    // this can fail if cells are not small enough
-                            cellsEdgeVectors[celli][1] = (allEdges[cellEdges[edgeI]]).vec(pp);
-                            radialGroundEdges.append(groundEdges[egrEdin]);
-                            radialGroundEdges.append(edgeI);
-                            radialEdgesFound=true;
-                            break;
-                        }
-                    }
-                }
-                groundEdges.append(edgeI);
-            }
-        }
-
-        forAll(groundEdges,gEdgeI){
-            if(groundEdges[gEdgeI]!=radialGroundEdges[0] && groundEdges[gEdgeI]!=radialGroundEdges[1]){
-                cellsEdgeVectors[celli][0] = Foam::mag(cellsEdgeVectors[celli][0]) < allEdges[cellEdges[groundEdges[gEdgeI]]].mag(pp) ? cellsEdgeVectors[celli][0] : allEdges[cellEdges[groundEdges[gEdgeI]]].vec(pp) ;
-            }
-        }
-
-/*        InfoL1<< "valores edges seleccionados en celda " << celli << ":" <<endl;
-        InfoL1<< "0: " << Foam::mag(cellsEdgeVectors[celli][0]) <<endl;
-        InfoL1<< "1: " << Foam::mag(cellsEdgeVectors[celli][1]) <<endl;
-        InfoL1 << endl;
-*/
-    }
-}
-
 
 namespace Foam{
     static label find(const List<label>& list,label elem){

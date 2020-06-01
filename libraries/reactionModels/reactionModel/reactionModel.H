@@ -112,8 +112,6 @@ public:
     reactionModel(const reactionModel&) = delete;
     void operator=(const reactionModel&) = delete;
 
-    virtual Foam::volVectorField* getCellsSizes(){ return nullptr; }
-    virtual Foam::List<Foam::List<Foam::vector>>* getCellsEdgeVectors(){ return nullptr; }
 protected:
 
     // Constructors

@@ -85,8 +85,6 @@ public:
 
     void postTransport() override;
 
-    volVectorField* getCellsSizes() override;
-    List<List<vector>>* getCellsEdgeVectors() override;
 
 private:
 

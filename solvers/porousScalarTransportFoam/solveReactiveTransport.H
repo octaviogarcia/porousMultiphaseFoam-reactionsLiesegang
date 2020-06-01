@@ -96,59 +96,19 @@
                 double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
                 const auto& Cref = composition.Y(speciesi);
-                auto gradC = fvc::grad(Cref).ref();
-                auto k = kValueTauD;
-                
-                const auto& cellsSizes = (*reactionModel->getCellsSizes());     //RECTANGULAR_MESH
-                const auto& cellsEdgeVectors = (*reactionModel->getCellsEdgeVectors());     //RADIAL_MESH
-
-                scalar tempTauD = GREAT;
-                scalar minTauDXY;
-
-                volVectorField vectorTauD( //@SPEED: initialize once and reutilize?
-                    IOobject(
-                        word("vectorTauD"),
-                        Cref.mesh().time().timeName(),
-                        Cref.mesh(),
-                        IOobject::NO_READ,
-                        IOobject::NO_WRITE
-                    ),
-                    Cref.mesh(), 
-                    vector((k*maxCref)/Deff,(k*maxCref)/Deff,0.0)
-                );
 
                 InfoL2 << setprecision(15);
 
 
-                #define RADIAL_MESH       //RECTANGULAR_MESH or RADIAL_MESH
-			  
-                #ifdef RECTANGULAR_MESH
-                forAll(gradC, cell){
-                    vectorTauD[cell].x() = fabs(gradC[cell].x())>1.0e-190 ? 
-                                            ( (vectorTauD[cell].x() * sqr(cellsSizes[cell].x()) )/ fabs(gradC[cell].x())) : GREAT;
-                    vectorTauD[cell].y() = fabs(gradC[cell].y())>1.0e-190 ? 
-                                            ( (vectorTauD[cell].y() * sqr(cellsSizes[cell].y()) )/ fabs(gradC[cell].y())) : GREAT;
-                                                                // the check on 1.0e-190 is due to the fact that before most times magGradC was 0 because the components where too small
-                                                                // and it makes some roundup. Now that's not the case, so the calculation of vectorTauD can give really big numbers that crash the simulation.
-                    minTauDXY = min(vectorTauD[cell].x(), vectorTauD[cell].y()); 
-                    tempTauD = min(minTauDXY, tempTauD); 
-                }
-                #endif
+                // formula: (k*maxCref*h^2)/(Deff*|GradC|)
+                scalar tempTauD = 0.0;
 
-                #ifdef RADIAL_MESH
-                forAll(gradC, cell){
-                    double gradProy_edAngular = mag(gradC[cell] & cellsEdgeVectors[cell][0]);              //gradient proyection on each edge vector (angular or radial)
-                    double gradProy_edRadial = mag(gradC[cell] & cellsEdgeVectors[cell][1]);        
-                    vectorTauD[cell].x() = gradProy_edAngular>1.0e-190 ? 
-                                            ( (vectorTauD[cell].x() * sqr(Foam::mag(cellsEdgeVectors[cell][0])) )/ gradProy_edAngular) : GREAT;
-                    vectorTauD[cell].y() = gradProy_edRadial>1.0e-190 ? 
-                                            ( (vectorTauD[cell].y() * sqr(Foam::mag(cellsEdgeVectors[cell][1])) )/ gradProy_edRadial) : GREAT;
-                                                                // the check on 1.0e-190 is due to the fact that before most times magGradC was 0 because the components where too small
-                                                                // and it makes some roundup. Now that's not the case, so the calculation of vectorTauD can give really big numbers that crash the simulation.
-                    minTauDXY = min(vectorTauD[cell].x(), vectorTauD[cell].y()); 
-                    tempTauD = min(minTauDXY, tempTauD); 
-                }
-                #endif
+                surfaceScalarField tauDField(tauDField_base);
+                surfaceScalarField magGradCParallel = mag(fvc::interpolate(fvc::grad(Cref)) ^ unitaryNormalToFace).ref() + dimensionedScalar("", dimensionSet(0,-4,0,0,1,0,0), 1.0e-50);
+                tauDField *= maxCref/(magGradCParallel*Deff);
+
+                tempTauD = min(tauDField).value();
+
 
                 InfoL2<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
                 tauD = min(tempTauD, tauD);       // between species looks for the smallest

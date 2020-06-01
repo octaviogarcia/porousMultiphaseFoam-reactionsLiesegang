@@ -62,16 +62,52 @@ int main(int argc, char *argv[])
     #include "readEvent.H"
 
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
+    scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.0125);
+    scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
     
     bool redoTimeStep = false;
+    bool determineCellSizes = true;
     int breakLoop = 0;
- 
+
+    const auto& ref = composition.Y(0);     // (see if this can be put in somewhere else)
+    const auto& mesh_temp = ref.mesh();
+    volScalarField cellSizes(       // h in TauD equation (see if this can be put somewhere else)
+        IOobject(
+            word("cellSizes"), mesh_temp.time().timeName(), mesh_temp, IOobject::NO_READ, IOobject::NO_WRITE
+            ), ref.mesh(), dimensionedScalar("",dimless,2.0)
+        );
+
+    scalar domThickness=0.0;
+    const pointField& pp = mesh_temp.points();
+    edgeList allEdges = mesh_temp.edges();
+    forAll(allEdges, edgeI)
+    {
+        if (pp[allEdges[edgeI].start()].z() != pp[allEdges[edgeI].end()].z())
+        {
+            domThickness = fabs(pp[allEdges[edgeI].start()].z() - pp[allEdges[edgeI].end()].z());
+            break;
+        }
+    }
+    InfoL1 << "domThickness: " << domThickness << endl;
+    
+    surfaceScalarField faceAreas = mesh_temp.magSf();
+    surfaceScalarField faceLenghtsSqr = sqr(faceAreas/domThickness);
+    surfaceVectorField unitaryNormalToFace = (mesh_temp.Sf()/faceAreas);
+    surfaceScalarField tauDField_base( //@SPEED: initialize once and reutilize?
+        IOobject(
+            word("vectorTauD"),
+            mesh_temp.time().timeName(),
+            mesh_temp,
+            IOobject::NO_READ,
+            IOobject::NO_WRITE
+        ),
+        mesh_temp, 
+        (kValueTauD)
+    );
+    tauDField_base *= faceLenghtsSqr;
+    
     while (runTime.run())
     {
-
-        scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.0125);
-        scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
-
         #include "CourantNo.H"
         forAll(patchEventList,patchEventi) patchEventList[patchEventi]->updateIndex(runTime.timeOutputValue());
         if (outputEventIsPresent) outputEvent.updateIndex(runTime.timeOutputValue());
