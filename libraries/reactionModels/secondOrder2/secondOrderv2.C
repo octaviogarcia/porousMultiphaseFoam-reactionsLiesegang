@@ -406,31 +406,18 @@ namespace Foam{
 
 void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
     const auto& centers_pos = mesh.C();
-    const auto& owner = mesh.owner();
-    const auto& neighbour = mesh.neighbour();
-    List<List<label>> adjacency(centers_pos.size(),List<label>());
-    forAll(owner,faceid){
-        const label from = owner[faceid];
-        const label to = neighbour[faceid];
-        if(mag(centers_pos[from]-centers_pos[to])<= cradius.value()){
-            adjacency[from].append(to);
-            adjacency[to].append(from);
-        }
-    }
-    FIFOStack<label> queue;//Linked List cause List doesnt have pop
-    forAll(centers_pos,center){
-        queue.clear();
-        queue.push(center);//BFS 
-        while(queue.size() > 0){
-            label to_expand = queue.pop();
-            forAll(adjacency[to_expand],adjidx){
-                label adj = adjacency[to_expand][adjidx];
-                if(adj != center &&
-                   find(inRadius[center],adj) == -1 &&
-                   mag(centers_pos[center]-centers_pos[adj]) <= cradius.value())
-                {
-                    inRadius[center].append(adj);
-                    queue.push(adj);
+    const auto& pointCells = mesh.pointCells();
+    forAll(pointCells,point){
+        for(int i = 0;i<pointCells[point].size();i++){
+            label cell1 = pointCells[point][i];
+            for(int j = i+1;j<pointCells[point].size();j++){
+                label cell2 = pointCells[point][j];
+                if(cell1 == cell2) continue;
+                if(find(inRadius[cell1],cell2) == -1){
+                    inRadius[cell1].append(cell2);
+                }
+                if(find(inRadius[cell2],cell1) == -1){
+                    inRadius[cell2].append(cell1);
                 }
             }
         }
