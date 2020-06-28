@@ -341,13 +341,13 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
-	if(influencedSpecieK1 != influencedSpecieK2){
+	if(influencedSpecieK1 != influencedSpecieK2){           //executes if reactions are specified but are not correct to Liesegang phenomenon or are incomplete.
 		FatalErrorIn("secondOrderv2.C")
 		<< "InfluencedSpecieK1,K2 valores distintos."
 		<< abort(FatalError);
 	}
-
-    if (!massConservative){
+    
+    if (!massConservative && influencedSpecieK1>=0){                     //execute if massConservative isn't needed and influencedSpecieK1==influencedSpecieK2 and >0;
         volScalarField cs( // Field with c* amount for each cell
             IOobject(
                 word("cs"),
@@ -359,7 +359,6 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
             Y_[0].mesh(), 
             cs_scalar
         );
-
         const auto& fieldTargetMass = Y_[influencedSpecieK1].internalField();
         forAll(fieldTargetMass, cell){
             binary[cell] = fieldTargetMass[cell] < rho.value();

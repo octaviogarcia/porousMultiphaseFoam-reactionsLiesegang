@@ -60,9 +60,11 @@ int main(int argc, char *argv[])
     #include "readReactions.H"
     #include "readTimeControls.H"
     #include "readEvent.H"
-
+    
     // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
     scalar maxDCVariation = runTime.controlDict().lookupOrDefault<scalar>("variationMax",0.0125);
+    scalar maxDeltaTIncrease = runTime.controlDict().lookupOrDefault<scalar>("maxDeltaTIncrease",0.2);
+    scalar deltaTDecrease = runTime.controlDict().lookupOrDefault<scalar>("deltaTDecrease",0.2);
     scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
     
     bool redoTimeStep = false;
@@ -88,7 +90,7 @@ int main(int argc, char *argv[])
             break;
         }
     }
-    InfoL1 << "domThickness: " << domThickness << endl;
+    InfoL1 << "domThickness used: " << domThickness << endl;
     
     surfaceScalarField faceAreas = mesh_temp.magSf();
     surfaceScalarField faceLenghtsSqr = sqr(faceAreas/domThickness);
@@ -105,6 +107,11 @@ int main(int argc, char *argv[])
         (kValueTauD)
     );
     tauDField_base *= faceLenghtsSqr;
+                    
+    scalar refValA = runTime.controlDict().lookupOrDefault<scalar>("refValA",500.0);
+    scalar refValB = runTime.controlDict().lookupOrDefault<scalar>("refValB",10.0);
+    scalar refValC = runTime.controlDict().lookupOrDefault<scalar>("refValC",10.0);
+    double referenceVal[] = {refValA, refValB, refValC};
     
     while (runTime.run())
     {

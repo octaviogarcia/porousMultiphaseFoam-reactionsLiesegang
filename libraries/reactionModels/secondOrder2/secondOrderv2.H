@@ -151,8 +151,8 @@ private:
     
     const fvMesh& mesh;
 
-    label influencedSpecieK1;
-    label influencedSpecieK2;
+    label influencedSpecieK1=-1;
+    label influencedSpecieK2=-1;
 
     bool flag1st=true;
 

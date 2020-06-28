@@ -93,7 +93,6 @@
             auto Deff = composition.Deff(speciesi)[5].xx();
 
             if(Deff != 0.0){
-                double referenceVal[] = {500.0, 10.0, 10.0};
                 const auto& maxCref = referenceVal[speciesi];
                 const auto& Cref = composition.Y(speciesi);
 
@@ -113,7 +112,9 @@
                 InfoL2<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
                 tauD = min(tempTauD, tauD);       // between species looks for the smallest
             }
-            else{
+
+            if(speciesi == composition.species().size()-1)
+            {
                 scalar newDeltaT = runTime.deltaTValue();
                 const auto& Dact = composition.Y(speciesi);
                 const auto& Dprev = composition.Y(speciesi).oldTime();
@@ -133,7 +134,7 @@
 
                     runTime.setTime(runTime.timeOutputValue() - runTime.deltaTValue(), runTime.timeIndex());
                     
-                    newDeltaT *= 0.8;       // calculate new delta T to achieve less variation
+                    newDeltaT *= 1.0-deltaTDecrease;       // calculate new deltaT to achieve less variation....if deltaTDecrease = 0.2 => newDeltaT *= 0.8;
                     InfoL2<< "deltaT reduced 20% ..."<< endl << endl;
 
                     runTime.setTime(runTime.timeOutputValue() + min(newDeltaT, maxDeltaT), runTime.timeIndex());
@@ -141,10 +142,11 @@
                     redoTimeStep=true;      // redo last timestep
                 }
                 else if (!breakLoop || (variation < maxDCVariation*0.75)){  // variation is acceptable to keep increasing deltaT (can be generalized)
-                    if (tauD > (1.2 * newDeltaT)){
-                        newDeltaT *= 1.2;
+                                                                                    //if maxDeltaTIncrease=0.2
+                    if (tauD > ((1.0+maxDeltaTIncrease) * newDeltaT)){              //   if tauD > (1.0+0.2) * newDeltaT
+                        newDeltaT *= (1.0+maxDeltaTIncrease);                       //      newDeltaT *= (1.0+0.2);
                         InfoL2<< "deltaT increased 20% ..."<< endl << endl;
-                    }else if (tauD < 1.2 * newDeltaT){
+                    }else if (tauD < (1.0+maxDeltaTIncrease) * newDeltaT){          //   if tauD < (1.0+0.2) * newDeltaT
                         newDeltaT = tauD;
                         InfoL2<< "using tauD ..."<< endl << endl;
                     }
