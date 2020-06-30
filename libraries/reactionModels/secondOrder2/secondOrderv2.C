@@ -405,21 +405,16 @@ namespace Foam{
 }
 
 void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
-    const auto& centers_pos = mesh.C();
-    const auto& pointCells = mesh.pointCells();
-    forAll(pointCells,point){
-        for(int i = 0;i<pointCells[point].size();i++){
-            label cell1 = pointCells[point][i];
-            for(int j = i+1;j<pointCells[point].size();j++){
-                label cell2 = pointCells[point][j];
-                if(cell1 == cell2) continue;
-                if(find(inRadius[cell1],cell2) == -1){
-                    inRadius[cell1].append(cell2);
-                }
-                if(find(inRadius[cell2],cell1) == -1){
-                    inRadius[cell2].append(cell1);
-                }
-            }
+    const auto& owner = mesh.owner();
+    const auto& neighbour = mesh.neighbour();
+    forAll(owner,faceid){
+        const label from = owner[faceid];
+        const label to = neighbour[faceid];
+        if(find(inRadius[from],to) == -1){
+            inRadius[from].append(to);
+        }
+        if(find(inRadius[to],from) == -1){
+            inRadius[to].append(from);
         }
     }
 }
