@@ -136,7 +136,6 @@ Foam::reactionModels::liesegangReaction::liesegangReaction
         mesh,
         vector(0.0,0.0,0.0)
     ),
-    cellsEdgeVectors(mesh.nCells(), List<vector>(2)),
     rho("", dimensionedScalar("",dimensionSet(0,-3,0,0,1,0,0),0.)),
     cradius("",dimensionedScalar("",dimensionSet(0,1,0,0,0,0,0),0.00015)),
     inRadius(mesh.C().size(),List<label>())

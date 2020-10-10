@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
     scalar kValueTauD = runTime.controlDict().lookupOrDefault<scalar>("kValueTauD",0.005);
     
     bool redoTimeStep = false;
-    bool determineCellSizes = true;
     int breakLoop = 0;
 
     const auto& ref = composition.Y(0);     // (see if this can be put in somewhere else)
@@ -95,7 +94,7 @@ int main(int argc, char *argv[])
     surfaceScalarField faceAreas = mesh_temp.magSf();
     surfaceScalarField faceLenghtsSqr = sqr(faceAreas/domThickness);
     surfaceVectorField unitaryNormalToFace = (mesh_temp.Sf()/faceAreas);
-    surfaceScalarField tauDField_base( //@SPEED: initialize once and reutilize?
+    surfaceScalarField tauDField_base(
         IOobject(
             word("vectorTauD"),
             mesh_temp.time().timeName(),

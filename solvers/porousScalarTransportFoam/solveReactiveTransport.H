@@ -112,8 +112,7 @@
                 InfoL2<< "tauD vectorized specie: " << speciesi << " value: " << tempTauD << endl;
                 tauD = min(tempTauD, tauD);       // between species looks for the smallest
             }
-
-            if(speciesi == composition.species().size()-1)
+            else //if(speciesi == composition.species().size()-1)
             {
                 scalar newDeltaT = runTime.deltaTValue();
                 const auto& Dact = composition.Y(speciesi);
