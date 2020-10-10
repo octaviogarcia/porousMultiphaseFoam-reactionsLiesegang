@@ -28,15 +28,15 @@ Description
     General second-order non-equilibrium reaction model.
 
 SourceFiles
-    secondOrderv2.C
+    liesegangReaction.C
 
 Developers
     Gabriel S. Gerlero, Pierre Horgue, Pablo A. Kler
 
 \*---------------------------------------------------------------------------*/
 
-#ifndef secondOrderv2_H
-#define secondOrderv2_H
+#ifndef liesegangReaction_H
+#define liesegangReaction_H
 
 #include "reactionModel.H"
 #include "specieCoeffs.H"
@@ -54,20 +54,20 @@ namespace reactionModels
 {
 
 /*---------------------------------------------------------------------------*\
-                   Class secondOrderv2 Declaration
+                   Class liesegangReaction Declaration
 \*---------------------------------------------------------------------------*/
 
-class secondOrderv2
+class liesegangReaction
 : public reactionModel
 {
 public:
 
     //- Runtime type information
-    TypeName("secondOrderv2");
+    TypeName("liesegangReaction");
 
     // Constructors
 
-    secondOrderv2
+    liesegangReaction
     (
         basicMultiComponentMixture& composition,
         const dictionary& reactions

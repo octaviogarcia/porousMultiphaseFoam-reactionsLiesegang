@@ -2,6 +2,6 @@ reactionModel/reactionModel.C
 reactionModel/reactionModelNew.C
 noReactions/noReactions.C
 secondOrder/secondOrder.C
-secondOrder2/secondOrderv2.C
+liesegangReaction/liesegangReaction.C
 
 LIB = $(FOAM_USER_LIBBIN)/libreactionModels

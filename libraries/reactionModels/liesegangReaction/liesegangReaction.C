@@ -23,7 +23,7 @@ License
 
 \*---------------------------------------------------------------------------*/
 
-#include "secondOrderv2.H"
+#include "liesegangReaction.H"
 #include "addToRunTimeSelectionTable.H"
 #include "fvmSup.H"
 #include "OStringStream.H"
@@ -34,12 +34,12 @@ namespace Foam
 {
 namespace reactionModels
 {
-defineTypeNameAndDebug(secondOrderv2, 0);
+defineTypeNameAndDebug(liesegangReaction, 0);
 
 addToRunTimeSelectionTable
 (
     reactionModel,
-    secondOrderv2,
+    liesegangReaction,
     dictionary
 );
 } // End namespace reactionModels
@@ -58,7 +58,7 @@ void checkDims
 
     if(composition.Y(speciesi).dimensions() != expected)
     {
-        FatalErrorIn("secondOrderv2.C")
+        FatalErrorIn("liesegangReaction.C")
             << "Species "
             << composition.species()[speciesi]
             << " appears in a reaction but its "
@@ -101,7 +101,7 @@ double sigLin(double x){
 }
 // * * * * * * * * * * * * * * * * Constructors  * * * * * * * * * * * * * * //
 
-Foam::reactionModels::secondOrderv2::secondOrderv2
+Foam::reactionModels::liesegangReaction::liesegangReaction
 (
     basicMultiComponentMixture& composition,
     const dictionary& reactions
@@ -261,7 +261,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             }
             else if (K1.size() != Y_.size())
             {
-                FatalErrorIn("secondOrderv2.C")
+                FatalErrorIn("liesegangReaction.C")
                     << "K1 list found for species "
                     << composition.species()[speciesi]
                     << " with wrong size "
@@ -278,7 +278,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
             }
             else if (K2.size() != Y_.size()*Y_.size())
             {
-                FatalErrorIn("secondOrderv2.C")
+                FatalErrorIn("liesegangReaction.C")
                     << "K2 list found for species "
                     << composition.species()[speciesi]
                     << " found with wrong size " << K2.size()
@@ -331,7 +331,7 @@ Foam::reactionModels::secondOrderv2::secondOrderv2
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
 
-void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
+void Foam::reactionModels::liesegangReaction::correct(bool massConservative)
 {
     if(!flag1st){
         return;
@@ -342,7 +342,7 @@ void Foam::reactionModels::secondOrderv2::correct(bool massConservative)
 	// In our case, influenced species K1 and K2 are the right hand side of 
 	// reactions C = D, i.e. D.
 	if(influencedSpecieK1 != influencedSpecieK2){           //executes if reactions are specified but are not correct to Liesegang phenomenon or are incomplete.
-		FatalErrorIn("secondOrderv2.C")
+		FatalErrorIn("liesegangReaction.C")
 		<< "InfluencedSpecieK1,K2 valores distintos."
 		<< abort(FatalError);
 	}
@@ -403,7 +403,7 @@ namespace Foam{
     }
 }
 
-void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
+void Foam::reactionModels::liesegangReaction::calcCellsInRadius(){
     const auto& centers_pos = mesh.C();
     const auto& owner = mesh.owner();
     const auto& neighbour = mesh.neighbour();
@@ -436,7 +436,7 @@ void Foam::reactionModels::secondOrderv2::calcCellsInRadius(){
     }
 }
 
-Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTerm
+Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::liesegangReaction::reactionTerm
 (
     const label speciesi
 )
@@ -451,25 +451,25 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::reactionTer
     }
 }
 
-bool Foam::reactionModels::secondOrderv2::needsSubcycling() const
+bool Foam::reactionModels::liesegangReaction::needsSubcycling() const
 {
     return true;
 }
 
-bool Foam::reactionModels::secondOrderv2::alwaysMassConservative() const
+bool Foam::reactionModels::liesegangReaction::alwaysMassConservative() const
 {
     return false;
 }
 
 
-void Foam::reactionModels::secondOrderv2::postTransport()
+void Foam::reactionModels::liesegangReaction::postTransport()
 {
     flag1st=true;
 }
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-Foam::label Foam::reactionModels::secondOrderv2::addReaction
+Foam::label Foam::reactionModels::liesegangReaction::addReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
@@ -484,7 +484,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
         auto exponent = floor(lhs[i].exponent);
         if(lhs[i].exponent != exponent)
         {
-            FatalErrorIn("secondOrderv2.C")
+            FatalErrorIn("liesegangReaction.C")
                 << "Non-integer exponents are not supported by this reaction model"
                 << abort(FatalError);
         }
@@ -498,7 +498,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
         auto exponent = floor(rhs[i].exponent);
         if(rhs[i].exponent != exponent)
         {
-            FatalErrorIn("secondOrderv2.C")
+            FatalErrorIn("liesegangReaction.C")
                 << "Non-integer exponents are not supported by this reaction model"
                 << abort(FatalError);
         }
@@ -522,7 +522,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
             break;
 
         default:
-            FatalErrorIn("secondOrderv2.C")
+            FatalErrorIn("liesegangReaction.C")
                 << "Reaction of order " << orderIndices.size()
                 << " not supported by this reaction model. "
                 << "Only reactions of orders 0, 1 and 2 are supported"
@@ -533,7 +533,7 @@ Foam::label Foam::reactionModels::secondOrderv2::addReaction
     return orderIndices.size();
 }
 
-void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
+void Foam::reactionModels::liesegangReaction::addSecondOrderReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
@@ -568,7 +568,7 @@ void Foam::reactionModels::secondOrderv2::addSecondOrderReaction
     }
 }
 
-void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
+void Foam::reactionModels::liesegangReaction::addFirstOrderReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
@@ -597,7 +597,7 @@ void Foam::reactionModels::secondOrderv2::addFirstOrderReaction
     }
 }
 
-void Foam::reactionModels::secondOrderv2::addZerothOrderReaction
+void Foam::reactionModels::liesegangReaction::addZerothOrderReaction
 (
     const List<specieCoeffs>& lhs,
     const List<specieCoeffs>& rhs,
@@ -616,7 +616,7 @@ void Foam::reactionModels::secondOrderv2::addZerothOrderReaction
 }
 
 
-Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReactionTerm
+Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::liesegangReaction::computeReactionTerm
 (
     const label speciesi,
     bool implicit
@@ -664,7 +664,7 @@ Foam::tmp<Foam::fvScalarMatrix> Foam::reactionModels::secondOrderv2::computeReac
     return tTerm;
 }
 
-void Foam::reactionModels::secondOrderv2::heaviside2InternalField
+void Foam::reactionModels::liesegangReaction::heaviside2InternalField
 (
     const DimensionedField<scalar, Foam::volMesh>& cField,
     const DimensionedField<scalar, Foam::volMesh>& csField
