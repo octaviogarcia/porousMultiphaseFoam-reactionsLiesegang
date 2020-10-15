@@ -1,0 +1,77 @@
+#!/bin/sh
+
+# Source tutorial run functions
+. $WM_PROJECT_DIR/bin/tools/RunFunctions
+
+rm -f log1.* *.csv
+rm -f log2.*
+rm -f log.*
+rm -rf 1* 2* 3* 4* 5* 6* 7* 8* 9* constant/polyMesh
+
+if [ $# -ne 6 ]
+then 
+ echo "Usage: ./run2Steps <splitTime> <endTime> <prevDeltaT> <postDeltaT> <prevAdjustTimeStep> <postAdjustTimeStep>"
+ exit 1 
+fi
+
+splitTime=$1
+endTime=$2
+prevDeltaT=$3
+postDeltaT=$4
+prevAdjustTimeStep=$5
+postAdjustTimeStep=$6
+
+if [ $splitTime -gt 100000 ]
+then 
+ writeInterval=10000
+elif [ $splitTime -gt 10000 ]
+then
+ writeInterval=1000
+elif [ $splitTime -lt 10 ]
+then
+ writeInterval=1
+else
+ writeInterval=$((splitTime/10))
+fi
+
+foamDictionary -entry startTime -set 0 system/controlDict
+foamDictionary -entry endTime -set $splitTime system/controlDict
+foamDictionary -entry deltaT -set $prevDeltaT system/controlDict
+foamDictionary -entry writeInterval -set $writeInterval system/controlDict
+foamDictionary -entry adjustTimeStep -set $prevAdjustTimeStep system/controlDict
+
+runApplication blockMesh
+runApplication porousScalarTransportFoam
+
+
+if [ $((endTime-splitTime)) -gt 100000 ]
+then 
+ writeInterval2=10000
+elif [ $((endTime-splitTime)) -gt 10000 ]
+then
+ writeInterval2=1000
+elif [ $((endTime-splitTime)) -lt 10 ]
+then
+ writeInterval2=1
+else
+ writeInterval2=$((endTime-splitTime/10))
+fi
+
+foamDictionary -entry startTime -set $splitTime system/controlDict
+foamDictionary -entry endTime -set $endTime system/controlDict
+foamDictionary -entry deltaT -set $postDeltaT system/controlDict
+foamDictionary -entry writeInterval -set $writeInterval2 system/controlDict
+foamDictionary -entry adjustTimeStep -set $postAdjustTimeStep system/controlDict
+
+mv log.porousScalarTransportFoam log1.porousScalarTransportFoam
+
+rm -f *.csv
+rm -f log.*
+rm -rf constant/polyMesh
+
+
+cp 0/Utheta $splitTime/Utheta
+runApplication blockMesh
+runApplication porousScalarTransportFoam
+
+mv log.porousScalarTransportFoam log2.porousScalarTransportFoam

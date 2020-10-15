@@ -6,9 +6,9 @@
 # command line is) PATH enviroment variable
 # You will also probably need to change this file in specific ways for
 # different cases
-# - Change the plot overline origin and endpoint depending on your domain.
+# - Change the plot overline origin and endpoint depending on your domain (line 105 - 110).
 # - Increase the plot overline resolution or increase the "eps" to detect
-#   very small bands.
+#   very small bands (line 199).
 
 
 # trace generated using paraview version 5.8.0-RC1
@@ -103,9 +103,9 @@ plotOverLine1 = PlotOverLine(Input=liesegangfoam,
     Source='High Resolution Line Source')
 
 # init the 'High Resolution Line Source' selected for 'Source'
-origin = [0, 0.001, 0.001]
+origin = [0, 0.005, 0.0005]
 plotOverLine1.Source.Point1 = origin
-plotOverLine1.Source.Point2 = [0.01, 0.001, 0.001]
+plotOverLine1.Source.Point2 = [0.08, 0.005, 0.0005]
 plotOverLine1.Source.Resolution = 10000
 
 # show data in view

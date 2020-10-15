@@ -1,15 +1,20 @@
 This project is the graduate thesis for students David Harispe and Octavio Garcia Aguirre, 
-with director Dr Pablo Kler and codirector Ing Gabriel Gerlero.
+with director Dr. Pablo Kler and codirector Ing. Gabriel Gerlero.
 Information systems engineering, UTN-FRSF.
 
 This is a fork of PorousMultiphaseFoam with multiple modifications to simulate
 the Liesegang phenomena. Please refer to www.github.com/phorgue/porousMultiphaseFoam 
 for installation instructions and other such things.
 
-Two example study cases are located in the tutorials folder, the first one is 1D and the other one
-is 2D. There's also an auxiliary tool to measure the width and spacing law of the
-simulated cases in the utilities folder, with installation instructions commented
-at the top of its sourcecode.
+Two example study cases are located in the /examples/liesegangReaction folder, the first 
+one is 1D and the other one is 2D. The simulation results of such examples can be found in 
+the following .zip file:
+
+https://drive.google.com/file/d/1bLo_qHzrtOXiorjFZ_Ts_ZIl6nKPFNRP/view?usp=sharing
+
+There's also an auxiliary tool to measure the width and spacing law of the simulated 
+cases (1D or 2D) in the utilities folder, with installation instructions commented at 
+the top of its sourcecode.
 
 
 
